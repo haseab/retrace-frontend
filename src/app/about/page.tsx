@@ -42,22 +42,36 @@ export default function AboutPage() {
             >
               <h2 className="text-3xl font-bold">The Story</h2>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                This project came about when Rewind announced that they'll be
-                shutting down on December 19.
+                This project started 6 days before its launch.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                I was left without a solution myself. I use Rewind for a very
-                particular purpose, which makes me use it 50x a day. I have been
-                tracking every minute of my life using Toggl for the last 7.5
-                years, and Rewind helps me identify exactly when I context
-                switched, so that I could track it.
+                Limitless announced that they got acquired by Meta. Everyone had
+                1 extra year of Limitless.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                I even created a Raycast extension that allowed you to enter in
-                natural language at what point in your rewind history you want
-                to go to, and it would open it up at precisely that point in
-                time. (e.g. 15 minutes ago, or sep 1 2:33pm) it even got 120
-                installs too!
+                I assumed that this privilege extended to Rewind users as well.
+              </p>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                I was wrong.{" "}
+              </p>
+
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                I found out a few days later that Rewind was going to shut down
+                in an alarming 14 days after their announcement!
+              </p>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                I personally consider myself one of Rewinds biggest power users,
+                using it dozens of times a day to manually track my time. If I
+                had to pay triple what I was paying for it, I likely would have.
+                And so you could imagine how I felt when I saw the news.
+              </p>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                I used the app so much, that I even created a Raycast extension
+                that allowed you to enter in natural language at what point in
+                your rewind history you want to go to, (e.g. 15 minutes ago, or
+                sep 1 2:33pm) and it would open it up at precisely that point in
+                time. It even got 120 other people using it too, which was
+                pretty cool.
               </p>
 
               {/* Raycast Extension Image */}
@@ -68,15 +82,21 @@ export default function AboutPage() {
                   className="w-full h-auto"
                 />
               </div>
-
               <p className="text-lg text-muted-foreground leading-relaxed">
-                When I found out about the Limitless acquisition, I spent a
-                couple of hours on the Limitless Slack channel of all of the
-                disgruntled users, users who had really believed in the product
-                and felt rug pulled. I spent a few days and I tried all of the
-                alternatives: Screenpipe, Timescroll, Screenmemory. I created a
-                Notion document with a table of all of the features I liked
-                about Rewind and how the other stacked up against them.
+                Rewind had other power users like me, for different purposes,
+                and you could see the reaction they had when you went on the
+                Community Slack channel. People were LIVID. There were people
+                who really believed in the product, who believed that the
+                company had their best interests at heart. And they felt like
+                they got the rug pulled out from under them.
+              </p>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                Personally, I have the mindest of "it is what is, let's move on
+                and let's explore what else exists out there." So I spent a few
+                days exploring all of the alternatives: Screenpipe, Timescroll,
+                Screenmemory. I created a Notion document with a table of all of
+                the features I liked about Rewind and how the other stacked up
+                against them.
               </p>
 
               {/* Comparison Table Image */}
@@ -90,9 +110,8 @@ export default function AboutPage() {
 
               <p className="text-lg text-muted-foreground leading-relaxed">
                 In the end I was left disappointed, and I realized that all open
-                source solutions of products just simply{" "}
-                <strong>AREN'T GOOD</strong>. And I didn't like that that was
-                the case. I put out this tweet:
+                source and free solutions for Rewind just simply{" "}
+                <strong>WEREN'T GOOD</strong>.
               </p>
 
               {/* First Tweet Embed */}
@@ -121,60 +140,38 @@ export default function AboutPage() {
               </div>
 
               <p className="text-lg text-muted-foreground leading-relaxed">
-                So I thought why don't I just build my own version of Rewind to
-                use personally? I spent a couple of days mulling over it,
-                looking more deeply into how Rewind was even built, as well as
-                the other open source alternatives, assessing whether I could
-                even build something like this. Because I've never coded in
-                Swift before, I've never built a desktop application, I've just
-                built web apps.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                I saw this tweet soon after:
+                I have this conviction personally that if I focus my mind on
+                anything, I can achieve it. And if I haven't seen anyone
+                building high quality consumer software that's free and open
+                source, then I'll be the one to show that it could be done.
               </p>
 
-              {/* Second Tweet Embed */}
-              <div className="my-8 flex justify-center">
-                <blockquote className="twitter-tweet" data-theme="dark">
-                  <p lang="en" dir="ltr">
-                    only make promises you can keep.{" "}
-                    <a href="https://t.co/3FVzttSQlB">
-                      https://t.co/3FVzttSQlB
-                    </a>
-                  </p>
-                  &mdash; ben (is hiring engineers) (@benhylak){" "}
-                  <a href="https://twitter.com/benhylak/status/1999147125419147440?ref_src=twsrc%5Etfw">
-                    December 11, 2025
-                  </a>
-                </blockquote>
-              </div>
-
               <p className="text-lg text-muted-foreground leading-relaxed">
-                And thought back to the people grieving in the community Slack.
-                All of the people who didn't have a solution, who weren't even
-                technical enough to build it out.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                I thought about what I said before about open source consumer
-                software not being high quality enough.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                And I thought:{" "}
+                So I thought,{" "}
                 <strong>
-                  fuck it, I'm going to build a better version of Rewind. And
-                  it's going to be free and open source.
+                  "you know what? fuck it. I've never programmed in swift
+                  before, I've never built a desktop application. I've only
+                  built web apps. Not only will I recreate Rewind with feature
+                  parity in 6 days, but I'm going to also make it free and open
+                  source."
                 </strong>
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                And I had about 1 week before Rewind AI shutdown. The clock
-                starts.
+                And so the clock started.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
                 I learned everything I could about Swift in a few hours, about
-                building a desktop application over a web app, about best
+                building a desktop application vs a web app, about best
                 practices, etc. Luckily, I already did some thinking on the
-                architecture a few days earlier, so my focus this next week was
-                on execution.
+                architecture a few days earlier, so my focus was just on
+                executing.
+              </p>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                I did not take an hour off, simply because I couldn't afford to;
+                this was a BIG project. Rewind apparently spent 2 years
+                developing the product with multiple engineers before releasing
+                it. I had to compress that into 6 days. Luckily I had Claude
+                Code.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
                 I was hyperfocused on concurrency. I had 3 Claude Code sessions
@@ -182,35 +179,32 @@ export default function AboutPage() {
                 with Rewind by December 19th.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                I did not take an hour off, simply because I couldn't afford to;
-                this was a BIG project. Rewind apparently spent 2 years
-                developing the product with multiple engineers before releasing
-                it. I had to compress that into 6 days. Luckily I had AI.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
                 I had to make snap decisions. What will the name be? I thought
-                of Glint, Trace, Refind, Rerun, Retrace. To find a compatible
-                domain name took an hour to ideate and get. The logo? 15
-                minutes. Creating & launching the website? 3 hours.
+                of Glint, Trace, Refind, Rerun, Retrace. Now I have to find an
+                available domain name. That took an hour to ideate and get. Then
+                the logo. 15 minutes. Then creating & launching the website? 3
+                hours.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                There were a couple of things that I actually did not like about
-                Rewind/Limitless. One big one was not really prioritizing the
-                privacy of others that coincide with their products. And so I
-                wanted to make that a hard constraint for Retrace. This means
-                blurring faces during meetings, not recording system audio but
-                only recording mic audio during meetings, auto-redacting
-                Personally Identifiable Information (PII), etc.
+                While building, I found a happy accident: Rewind encrypts the
+                SQLite database by default, but didn't encrypt the raw
+                picture/video files. Which was great for us because I could help
+                everyone migrate their Rewind screenshots over and rebuild the
+                database! (although not perfectly)
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                A happy accident: Rewind encrypts the SQLite database by
-                default, but didn't encrypt the raw screenshot files. Which was
-                great for us because I could help everyone migrate their Rewind
-                screenshots over and rebuild the database! (although not
-                perfectly)
+                What I didn't like about Rewind / Limitless was that they didn't
+                really prioritize the privacy of others that coincided with
+                their products. People would get their voice recorded or their
+                face captured without consent. And so I wanted to make that a
+                hard constraint for Retrace. This means blurring faces during
+                meetings, not recording system audio but only recording mic
+                audio during meetings, auto-redacting any PII.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                I present to you: <strong>Retrace ✨</strong>
+                Currently, i'm making progress with building the product. This
+                website is done, the backend is mostly stable, now what's the
+                left is to create the UI.
               </p>
             </motion.div>
           </div>
