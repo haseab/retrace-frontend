@@ -138,11 +138,11 @@ const faqCategories = [
       },
       {
         q: "Where do I report bugs?",
-        a: "Please open an issue on GitHub with detailed steps to reproduce the bug, your macOS version, and Retrace version. Logs from Settings > Advanced > Export Logs are helpful too.",
+        a: "Please email support@retrace.to with detailed steps to reproduce the bug, your macOS version, and Retrace version. Logs from Settings > Advanced > Export Logs are helpful too.",
       },
       {
         q: "Can I request features?",
-        a: "Absolutely! Open a feature request on GitHub Discussions. Describe your use case and why it would benefit other users. Popular requests are more likely to be implemented.",
+        a: "Absolutely! Submit a feature request on Featurebase at retrace.featurebase.app. Describe your use case and why it would benefit other users. Popular requests are more likely to be implemented.",
       },
       {
         q: "How do I build from source?",
@@ -191,24 +191,22 @@ export default function FAQPage() {
           <div className="rounded-xl border border-border bg-card p-8 text-center space-y-4">
             <h2 className="text-2xl font-bold">Still have questions?</h2>
             <p className="text-muted-foreground">
-              Join our community discussion on GitHub or open an issue
+              Join our community on Featurebase or email support
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
-                href="https://github.com/haseab/retrace/discussions"
+                href="https://retrace.featurebase.app"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                GitHub Discussions →
+                Visit Featurebase →
               </a>
               <a
-                href="https://github.com/haseab/retrace/issues"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="mailto:support@retrace.to"
                 className="text-primary hover:underline"
               >
-                Report an Issue →
+                Email Support →
               </a>
             </div>
           </div>

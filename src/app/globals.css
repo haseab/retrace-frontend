@@ -26,6 +26,7 @@
   --chart-3: 212 95% 68%;
   --chart-4: 199 89% 48%;
   --chart-5: 186 94% 56%;
+  --deep-blue: #040b1a;
 }
 
 * {
@@ -33,6 +34,6 @@
 }
 
 body {
-  background-color: #040b1a;
+  background-color: var(--deep-blue);
   color: hsl(var(--foreground));
 }

@@ -4,8 +4,8 @@ export const SITE_CONFIG = {
   links: {
     github: "https://github.com/haseab/retrace",
     twitter: "https://twitter.com/haseab_",
-    githubIssues: "https://github.com/haseab/retrace/issues",
-    githubDiscussions: "https://github.com/haseab/retrace/discussions",
+    support: "mailto:support@retrace.to",
+    featurebase: "https://retrace.featurebase.app",
     githubReleases: "https://github.com/haseab/retrace/releases",
   },
 } as const;

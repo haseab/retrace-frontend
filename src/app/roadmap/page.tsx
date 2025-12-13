@@ -219,7 +219,7 @@ export default function RoadmapPage() {
             </h2>
             <p className="text-muted-foreground">
               Features we're exploring based on community feedback. Vote on
-              GitHub Discussions to help prioritize!
+              Featurebase to help prioritize!
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               {roadmapItems.underConsideration.map((item, index) => (
@@ -291,25 +291,17 @@ export default function RoadmapPage() {
           >
             <h2 className="text-2xl font-bold">Have a Feature Request?</h2>
             <p className="text-muted-foreground">
-              We'd love to hear your ideas! Join the discussion on GitHub to
+              We'd love to hear your ideas! Visit Featurebase to
               suggest features or vote on existing proposals.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
-                href="https://github.com/haseab/retrace/discussions/categories/ideas"
+                href="https://retrace.featurebase.app"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline font-medium"
               >
-                Suggest a Feature →
-              </a>
-              <a
-                href="https://github.com/haseab/retrace/discussions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline font-medium"
-              >
-                View All Discussions →
+                Visit Featurebase →
               </a>
             </div>
           </motion.div>

@@ -1,5 +1,5 @@
-import { Scale, FileText, AlertCircle, CheckCircle } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
+import { AlertCircle, CheckCircle, FileText } from "lucide-react";
 
 export const metadata = {
   title: "Terms of Service - Retrace",
@@ -14,27 +14,13 @@ export default function TermsPage() {
         <div className="mx-auto max-w-4xl space-y-16">
           <SectionHeader
             title="Terms of Service"
-            subtitle="Last updated: December 2024"
+            subtitle="Last updated: December 2025"
             centered
           />
 
           <div className="prose prose-lg max-w-none dark:prose-invert">
-            {/* TL;DR */}
-            <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-8 not-prose">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Scale className="h-6 w-6 text-primary" />
-                TL;DR
-              </h2>
-              <p className="text-lg leading-relaxed">
-                Retrace is <strong>free and open source software</strong> under
-                the GPL v3 license. You can use it, modify it, and distribute
-                it freely. We provide the software "as is" without warranties.
-                Your use is at your own risk.
-              </p>
-            </div>
-
             {/* Acceptance of Terms */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold flex items-center gap-2">
                 <FileText className="h-7 w-7 text-primary" />
                 Acceptance of Terms
@@ -47,7 +33,7 @@ export default function TermsPage() {
             </section>
 
             {/* License */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Open Source License</h2>
               <p>
                 Retrace is licensed under the{" "}
@@ -59,12 +45,8 @@ export default function TermsPage() {
                   ✅ You can use Retrace for any purpose, including commercial
                   use
                 </li>
-                <li>
-                  ✅ You can modify the source code to suit your needs
-                </li>
-                <li>
-                  ✅ You can distribute copies of Retrace
-                </li>
+                <li>✅ You can modify the source code to suit your needs</li>
+                <li>✅ You can distribute copies of Retrace</li>
                 <li>
                   ✅ You can distribute modified versions, but they must also be
                   under GPL v3
@@ -87,7 +69,7 @@ export default function TermsPage() {
             </section>
 
             {/* Use of the Software */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Use of the Software</h2>
               <div className="space-y-4">
                 <div>
@@ -135,7 +117,7 @@ export default function TermsPage() {
             </section>
 
             {/* No Warranty */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">No Warranty</h2>
               <p>
                 Retrace is provided <strong>"AS IS"</strong> without warranty of
@@ -157,7 +139,7 @@ export default function TermsPage() {
             </section>
 
             {/* Limitation of Liability */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Limitation of Liability</h2>
               <p>
                 In no event shall the developers, contributors, or copyright
@@ -181,7 +163,7 @@ export default function TermsPage() {
             </section>
 
             {/* Privacy & Data */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Privacy & Data Handling</h2>
               <p>
                 Retrace is a local-first application. All your data stays on
@@ -203,7 +185,7 @@ export default function TermsPage() {
             </section>
 
             {/* System Requirements */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">System Requirements</h2>
               <p>
                 Retrace requires macOS 13.0 or later. Apple Silicon Macs are
@@ -213,7 +195,7 @@ export default function TermsPage() {
             </section>
 
             {/* Third-Party Components */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Third-Party Components</h2>
               <p>
                 Retrace uses various open source libraries and components. Each
@@ -224,16 +206,14 @@ export default function TermsPage() {
             </section>
 
             {/* Updates and Changes */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Updates and Changes</h2>
               <p>
                 We may update Retrace and these Terms of Service from time to
                 time. Continued use of the software after updates constitutes
                 acceptance of the new terms.
               </p>
-              <p>
-                Updates are distributed through:
-              </p>
+              <p>Updates are distributed through:</p>
               <ul className="space-y-2">
                 <li>Direct downloads from our website</li>
                 <li>Homebrew package manager</li>
@@ -242,7 +222,7 @@ export default function TermsPage() {
             </section>
 
             {/* Termination */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Termination</h2>
               <p>
                 You may stop using Retrace at any time by uninstalling the
@@ -253,7 +233,7 @@ export default function TermsPage() {
             </section>
 
             {/* Governing Law */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Governing Law</h2>
               <p>
                 These terms are governed by the laws of your jurisdiction. As
@@ -263,55 +243,31 @@ export default function TermsPage() {
             </section>
 
             {/* Contact */}
-            <section className="space-y-4">
+            <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Contact</h2>
               <p>
                 For questions about these Terms of Service or the GPL v3
-                license:
+                license, email{" "}
+                <a
+                  href="mailto:support@retrace.to"
+                  className="text-primary hover:underline"
+                >
+                  support@retrace.to
+                </a>
               </p>
-              <ul className="space-y-2">
-                <li>
-                  Open an issue on{" "}
-                  <a
-                    href="https://github.com/haseab/retrace/issues"
-                    className="text-primary hover:underline"
-                  >
-                    GitHub
-                  </a>
-                </li>
-                <li>
-                  Join the discussion on{" "}
-                  <a
-                    href="https://github.com/haseab/retrace/discussions"
-                    className="text-primary hover:underline"
-                  >
-                    GitHub Discussions
-                  </a>
-                </li>
-                <li>
-                  View the full GPL v3 license{" "}
-                  <a
-                    href="https://www.gnu.org/licenses/gpl-3.0.en.html"
-                    className="text-primary hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    here
-                  </a>
-                </li>
-              </ul>
+              <p className="mt-4">
+                You can also view the full GPL v3 license{" "}
+                <a
+                  href="https://www.gnu.org/licenses/gpl-3.0.en.html"
+                  className="text-primary hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  here
+                </a>
+                .
+              </p>
             </section>
-
-            {/* Final Note */}
-            <div className="rounded-xl border border-border bg-card p-8 not-prose">
-              <p className="text-lg font-semibold text-center">
-                Free as in Freedom
-              </p>
-              <p className="text-center text-muted-foreground mt-2">
-                Retrace is free software. You have the freedom to use, study,
-                share, and improve it.
-              </p>
-            </div>
           </div>
         </div>
       </section>

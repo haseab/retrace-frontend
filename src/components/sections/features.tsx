@@ -1,8 +1,15 @@
 "use client";
 
-import { Shield, Search, HardDrive, Lock, Zap, Code } from "lucide-react";
 import { FeatureCard } from "@/components/ui/feature-card";
 import { SectionHeader } from "@/components/ui/section-header";
+import {
+  ArrowRightLeft,
+  Clock,
+  Code,
+  HardDrive,
+  Search,
+  Shield,
+} from "lucide-react";
 
 const features = [
   {
@@ -18,22 +25,22 @@ const features = [
       "Find anything you've seen with natural language queries. OCR and text extraction work locally on your device.",
   },
   {
+    icon: Clock,
+    title: "Timeline Scrolling View",
+    description:
+      "Navigate your screen history with an intuitive timeline interface. Scroll through your past activity and jump to any moment instantly.",
+  },
+  {
     icon: HardDrive,
-    title: "Zero Cloud Dependency",
+    title: "~4000x Compression",
     description:
-      "Everything runs on your Mac. No internet connection required after installation. Your data never leaves your device.",
+      "Advanced compression technology means your entire screen history takes only 10-15 GB per month. Store months of data without filling your drive. Easy Exporting.",
   },
   {
-    icon: Lock,
-    title: "End-to-End Encrypted",
+    icon: ArrowRightLeft,
+    title: "Rewind Migration",
     description:
-      "Screen captures and extracted text are encrypted using your Mac's secure keychain. Only you have access.",
-  },
-  {
-    icon: Zap,
-    title: "Lightning Fast",
-    description:
-      "Optimized for Apple Silicon with efficient background processing. Minimal battery and CPU usage.",
+      "Seamlessly migrate your existing Rewind data to Retrace. Import your screen history and continue where you left off.",
   },
   {
     icon: Code,

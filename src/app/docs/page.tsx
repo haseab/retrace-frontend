@@ -234,10 +234,10 @@ export default function DocsPage() {
               </Button>
               <Button asChild variant="outline">
                 <Link
-                  href="https://github.com/haseab/retrace/discussions"
+                  href="https://retrace.featurebase.app"
                   target="_blank"
                 >
-                  Community Discussions
+                  Featurebase Community
                 </Link>
               </Button>
             </div>

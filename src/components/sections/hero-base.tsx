@@ -75,7 +75,7 @@ export function HeroBase({
 
   return (
     <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0e2c6b] to-[#040b1a]" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0e2c6b] to-[var(--deep-blue)]" />
 
       <div className="relative z-10 mx-auto max-w-7xl w-full py-20">
         <div className="text-center space-y-8">
@@ -117,15 +117,35 @@ export function HeroBase({
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col items-center justify-center gap-3 pt-4"
           >
-            <Button
-              size="lg"
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className="text-lg px-8 py-6 border border-white/10 rounded-xl"
-            >
-              <Download className="mr-2 h-5 w-5" />
-              {isDownloading ? "Starting Download..." : "Download Retrace v0.1"}
-            </Button>
+            <div className="relative w-full max-w-xs">
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                {isDownloading ? "Starting Download..." : "Download Retrace v0.1"}
+              </Button>
+              <div
+                className="absolute inset-0 rounded-xl border-2 pointer-events-none"
+                style={{
+                  borderColor: '#3b82f6',
+                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                }}
+              />
+              <style jsx>{`
+                @keyframes pulse {
+                  0%, 100% {
+                    opacity: 1;
+                  }
+                  50% {
+                    opacity: 0.3;
+                  }
+                }
+              `}</style>
+            </div>
 
             <div className="flex items-center gap-3 w-full max-w-xs">
               <div className="flex-1 h-px bg-white/10" />
@@ -133,7 +153,7 @@ export function HeroBase({
               <div className="flex-1 h-px bg-white/10" />
             </div>
 
-            <div className="group relative inline-flex items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2">
+            <div className="group relative inline-flex items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs">
               <code className="text-sm text-muted-foreground">
                 <span className="text-blue-400">$</span> brew install --cask
                 retrace

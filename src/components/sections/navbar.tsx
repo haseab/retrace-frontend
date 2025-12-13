@@ -8,13 +8,19 @@ import { FaGithub } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SITE_CONFIG } from "@/lib/config";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const navigation = [
   { name: "Features", href: "/#features" },
   { name: "Docs", href: "/docs" },
   { name: "FAQ", href: "/faq" },
   { name: "About", href: "/about" },
-  { name: "Roadmap", href: "/roadmap" },
+  { name: "Roadmap", href: "https://retrace.featurebase.app" },
 ];
 
 export function Navbar() {
@@ -30,39 +36,57 @@ export function Navbar() {
   }, []);
 
   return (
-    <nav
-      className={cn(
-        "fixed top-0 z-50 w-full transition-all duration-300",
-        isScrolled
-          ? "bg-background/80 backdrop-blur-md border-b border-border"
-          : "bg-transparent"
-      )}
-    >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-1">
-              <Image
-                src="/logo.svg"
-                alt="Retrace Logo"
-                width={32}
-                height={32}
-                className="h-8 w-8"
-              />
-              <span className="text-xl font-bold">Retrace</span>
-            </Link>
-            <div className="hidden md:flex md:gap-6">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {item.name}
-                </Link>
-              ))}
+    <TooltipProvider delayDuration={0}>
+      <nav
+        className={cn(
+          "fixed top-0 z-50 w-full transition-all duration-300",
+          isScrolled
+            ? "bg-background/80 backdrop-blur-md border-b border-border"
+            : "bg-transparent"
+        )}
+      >
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-8">
+              <Link href="/" className="flex items-center gap-1">
+                <Image
+                  src="/logo.svg"
+                  alt="Retrace Logo"
+                  width={32}
+                  height={32}
+                  className="h-8 w-8"
+                />
+                <span className="text-xl font-bold">Retrace</span>
+              </Link>
+              <div className="hidden md:flex md:gap-6">
+                {navigation.map((item) => (
+                  item.name === "Docs" ? (
+                    <Tooltip key={item.name}>
+                      <TooltipTrigger asChild>
+                        <span
+                          className="text-sm font-medium cursor-not-allowed"
+                          style={{ color: '#6b7280' }}
+                        >
+                          {item.name}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Coming soon</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                      target={item.href.startsWith("http") ? "_blank" : undefined}
+                    >
+                      {item.name}
+                    </Link>
+                  )
+                ))}
+              </div>
             </div>
-          </div>
 
           <div className="hidden md:flex md:items-center md:gap-4">
             <Button variant="ghost" size="icon" asChild>
@@ -96,14 +120,25 @@ export function Navbar() {
         {isMobileMenuOpen && (
           <div className="md:hidden border-t border-border py-4 space-y-2">
             {navigation.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="block px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent rounded-md"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {item.name}
-              </Link>
+              item.name === "Docs" ? (
+                <span
+                  key={item.name}
+                  className="block px-4 py-2 text-sm font-medium cursor-not-allowed"
+                  style={{ color: '#6b7280' }}
+                >
+                  {item.name} (Coming soon)
+                </span>
+              ) : (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="block px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  target={item.href.startsWith("http") ? "_blank" : undefined}
+                >
+                  {item.name}
+                </Link>
+              )
             ))}
             <div className="px-4 pt-2 space-y-2">
               <Button variant="outline" className="w-full" asChild>
@@ -117,5 +152,6 @@ export function Navbar() {
         )}
       </div>
     </nav>
+    </TooltipProvider>
   );
 }

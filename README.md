@@ -187,8 +187,8 @@ This website respects user privacy:
 
 ## Support
 
-- GitHub Issues: [Report bugs](https://github.com/haseab/retrace/issues)
-- Discussions: [Join the community](https://github.com/haseab/retrace/discussions)
+- Email Support: [Report bugs](mailto:support@retrace.to)
+- Featurebase: [Join the community](https://retrace.featurebase.app)
 
 ---
 
