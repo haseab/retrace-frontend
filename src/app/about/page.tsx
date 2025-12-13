@@ -1,10 +1,8 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { motion } from "framer-motion";
-import { Github } from "lucide-react";
-import Link from "next/link";
+import { Github, Mail, MessageSquare } from "lucide-react";
 import Script from "next/script";
 import { useEffect } from "react";
 
@@ -210,7 +208,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Open Source */}
+        {/* Open Source
         <section className="px-4 sm:px-6 lg:px-8 py-12">
           <div className="mx-auto max-w-4xl space-y-8">
             <motion.div
@@ -221,8 +219,8 @@ export default function AboutPage() {
               className="space-y-6"
             >
               <h2 className="text-3xl font-bold">Open Source Commitment</h2>
-              <div className="prose prose-lg max-w-none dark:prose-invert">
-                <p className="text-lg text-muted-foreground leading-relaxed">
+              <div className="prose prose-lg max-w-none dark:prose-invert space-y-2">
+                <p className="text-muted-foreground leading-relaxed">
                   Retrace is licensed under GPL v3, one of the strongest
                   copyleft licenses. This ensures:
                 </p>
@@ -262,26 +260,61 @@ export default function AboutPage() {
               </div>
             </motion.div>
           </div>
-        </section>
+        </section> */}
 
-        {/* Team */}
+        {/* Creator Profile */}
         <section className="px-4 sm:px-6 lg:px-8 py-12 bg-muted/30">
-          <div className="mx-auto max-w-4xl space-y-8">
-            <h2 className="text-3xl font-bold text-center">
-              Team & Contributors
-            </h2>
+          <div className="mx-auto max-w-4xl">
+            <h2 className="text-3xl font-bold text-center mb-8">Built By</h2>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="text-center space-y-6"
+              className="flex justify-center rounded-xl border border-border bg-card p-8"
             >
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Retrace is maintained by a community of privacy advocates,
-                developers, and users who believe in local-first software. We
-                welcome contributors of all skill levels.
-              </p>
+              <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+                <div className="flex-shrink-0">
+                  <img
+                    src="https://github.com/haseab.png"
+                    alt="haseab profile"
+                    className="w-32 h-32 rounded-full border-2 border-primary"
+                  />
+                </div>
+                <div className="flex-1 text-center md:text-left space-y-4 justify-center">
+                  <div>
+                    <h3 className="text-2xl font-bold">Haseab</h3>
+                    <p className="text-muted-foreground">
+                      Creator & Maintainer
+                    </p>
+                  </div>
+                  <p className="text-lg text-muted-foreground leading-relaxed"></p>
+                  <div className="flex gap-4 justify-center md:justify-start">
+                    <a
+                      href="https://twitter.com/haseab_"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <svg
+                        className="w-6 h-6"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      </svg>
+                    </a>
+                    <a
+                      href="https://github.com/haseab"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Github className="w-6 h-6" />
+                    </a>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -303,28 +336,51 @@ export default function AboutPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <a
                   href="mailto:support@retrace.to"
-                  className="p-4 rounded-lg border border-border hover:border-primary transition-colors"
+                  className="p-6 rounded-lg border border-border hover:border-primary transition-colors group"
                 >
-                  <h3 className="font-semibold mb-2">Report Bugs</h3>
-                  <p className="text-sm text-muted-foreground">Email Support</p>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                      <Mail className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-semibold">Report Bugs</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Email Support
+                    </p>
+                  </div>
                 </a>
                 <a
                   href="https://retrace.featurebase.app"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-4 rounded-lg border border-border hover:border-primary transition-colors"
+                  className="p-6 rounded-lg border border-border hover:border-primary transition-colors group"
                 >
-                  <h3 className="font-semibold mb-2">Community</h3>
-                  <p className="text-sm text-muted-foreground">Featurebase</p>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                      <MessageSquare className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-semibold">Community</h3>
+                    <p className="text-sm text-muted-foreground">Featurebase</p>
+                  </div>
                 </a>
                 <a
-                  href="https://twitter.com/retrace"
+                  href="https://twitter.com/haseab_"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-4 rounded-lg border border-border hover:border-primary transition-colors"
+                  className="p-6 rounded-lg border border-border hover:border-primary transition-colors group"
                 >
-                  <h3 className="font-semibold mb-2">Follow Updates</h3>
-                  <p className="text-sm text-muted-foreground">Twitter/X</p>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                      <svg
+                        className="h-6 w-6"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      </svg>
+                    </div>
+                    <h3 className="font-semibold">Follow Updates</h3>
+                    <p className="text-sm text-muted-foreground">Twitter/X</p>
+                  </div>
                 </a>
               </div>
             </motion.div>
