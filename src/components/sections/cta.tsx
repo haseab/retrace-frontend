@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Download, Github } from "lucide-react";
+import { Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DownloadButton } from "@/components/ui/download-button";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
 export function CTA() {
@@ -34,24 +32,7 @@ export function CTA() {
 
           <div className="flex flex-col items-center justify-center gap-4">
             <div className="relative">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      disabled
-                      className="text-lg px-8 py-6 rounded-xl transition-all border-0 cursor-not-allowed opacity-50"
-                    >
-                      <Download className="mr-2 h-5 w-5" />
-                      Download for macOS
-                    </Button>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Available Dec 19</p>
-                </TooltipContent>
-              </Tooltip>
+              <DownloadButton text="Download for macOS" className="w-auto" />
             </div>
             <Button
               size="lg"

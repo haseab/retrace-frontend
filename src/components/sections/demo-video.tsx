@@ -15,11 +15,12 @@ export function DemoVideo() {
           className="space-y-8"
         >
           <div className="text-center space-y-4">
-            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               See Retrace in Action
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Watch how Retrace helps you find anything you've seen on your screen
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+              Watch how Retrace helps you find anything you've seen on your
+              screen
             </p>
           </div>
 

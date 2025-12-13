@@ -32,7 +32,7 @@ export function SectionHeader({
         {title}
       </h2>
       {subtitle && (
-        <p className="text-lg text-muted-foreground w-full">
+        <p className="text-sm sm:text-base md:text-lg text-muted-foreground w-full">
           {subtitle}
         </p>
       )}
