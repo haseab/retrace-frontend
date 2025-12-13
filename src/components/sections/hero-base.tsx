@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Check, Copy, Download } from "lucide-react";
 import { useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const LATEST_VERSION = "1.0.0";
 
@@ -74,6 +80,7 @@ export function HeroBase({
   };
 
   return (
+    <TooltipProvider delayDuration={0}>
     <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0e2c6b] to-[var(--deep-blue)]" />
 
@@ -118,33 +125,24 @@ export function HeroBase({
             className="flex flex-col items-center justify-center gap-3 pt-4"
           >
             <div className="relative w-full max-w-xs">
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full"
-              >
-                <Download className="mr-2 h-5 w-5" />
-                {isDownloading ? "Starting Download..." : "Download Retrace v0.1"}
-              </Button>
-              <div
-                className="absolute inset-0 rounded-xl border-2 pointer-events-none"
-                style={{
-                  borderColor: '#3b82f6',
-                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-                }}
-              />
-              <style jsx>{`
-                @keyframes pulse {
-                  0%, 100% {
-                    opacity: 1;
-                  }
-                  50% {
-                    opacity: 0.3;
-                  }
-                }
-              `}</style>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      disabled
+                      className="text-lg px-8 py-6 rounded-xl transition-all border-0 w-full cursor-not-allowed opacity-50"
+                    >
+                      <Download className="mr-2 h-5 w-5" />
+                      Download Retrace v0.1
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Available Dec 19</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             <div className="flex items-center gap-3 w-full max-w-xs">
@@ -178,5 +176,6 @@ export function HeroBase({
         </div>
       </div>
     </section>
+    </TooltipProvider>
   );
 }

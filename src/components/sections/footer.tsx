@@ -1,19 +1,18 @@
 "use client";
 
-import { Github, Twitter } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Github, Twitter } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 
 const footerLinks = {
   product: [
     { name: "Features", href: "/#features" },
-    { name: "Download", href: "/download" },
     { name: "Roadmap", href: "https://retrace.featurebase.app" },
     { name: "Changelog", href: "/changelog" },
   ],

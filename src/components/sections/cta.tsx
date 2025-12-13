@@ -4,9 +4,16 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Download, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function CTA() {
   return (
+    <TooltipProvider delayDuration={0}>
     <section className="py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden" style={{ backgroundColor: 'var(--deep-blue)' }}>
 
       <div className="mx-auto max-w-4xl">
@@ -27,34 +34,24 @@ export function CTA() {
 
           <div className="flex flex-col items-center justify-center gap-4">
             <div className="relative">
-              <Button
-                size="lg"
-                variant="outline"
-                asChild
-                className="text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0"
-              >
-                <Link href="/download">
-                  <Download className="mr-2 h-5 w-5" />
-                  Download for macOS
-                </Link>
-              </Button>
-              <div
-                className="absolute inset-0 rounded-xl border-2 pointer-events-none"
-                style={{
-                  borderColor: '#3b82f6',
-                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-                }}
-              />
-              <style jsx>{`
-                @keyframes pulse {
-                  0%, 100% {
-                    opacity: 1;
-                  }
-                  50% {
-                    opacity: 0.3;
-                  }
-                }
-              `}</style>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      disabled
+                      className="text-lg px-8 py-6 rounded-xl transition-all border-0 cursor-not-allowed opacity-50"
+                    >
+                      <Download className="mr-2 h-5 w-5" />
+                      Download for macOS
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Available Dec 19</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <Button
               size="lg"
@@ -74,5 +71,6 @@ export function CTA() {
         </motion.div>
       </div>
     </section>
+    </TooltipProvider>
   );
 }

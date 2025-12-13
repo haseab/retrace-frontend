@@ -94,12 +94,17 @@ export function Navbar() {
                 <FaGithub className="h-5 w-5" />
               </Link>
             </Button>
-            <Button asChild>
-              <Link href="/download">
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Link>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button disabled className="cursor-not-allowed">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Available Dec 19</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="flex md:hidden gap-2">
