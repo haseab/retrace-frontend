@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  --background: 222 47% 4%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 7%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 4%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 217 91% 60%;
+  --radius: 0.5rem;
+  --chart-1: 217 91% 60%;
+  --chart-2: 221 83% 53%;
+  --chart-3: 212 95% 68%;
+  --chart-4: 199 89% 48%;
+  --chart-5: 186 94% 56%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: #040b1a;
+  color: hsl(var(--foreground));
+}

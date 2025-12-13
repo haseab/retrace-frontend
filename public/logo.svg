@@ -1,0 +1,11 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Left triangle pointing left ◁ -->
+  <path d="M 25 100 L 90 55 L 90 145 Z"
+        fill="#ffffff"
+        opacity="0.9"/>
+
+  <!-- Right triangle pointing right ▷ -->
+  <path d="M 175 100 L 110 55 L 110 145 Z"
+        fill="#ffffff"
+        opacity="0.9"/>
+</svg>

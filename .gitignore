@@ -19,6 +19,10 @@
 .DS_Store
 *.pem
 
+# markdown files (except README.md)
+*.md
+!README.md
+
 # debug
 npm-debug.log*
 yarn-debug.log*
