@@ -86,27 +86,50 @@ export default function PrivacyPage() {
             <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold flex items-center gap-2">
                 <Mic className="h-7 w-7 text-primary" />
-                Restricted Audio Capture ("Mic-Only" Clause)
+                Restricted Default Audio Capture ("Mic-Only" Clause)
               </h2>
               <p className="font-semibold text-lg">
                 Retrace protects the privacy of others in your conversations.
               </p>
               <div className="bg-primary/10 border-2 border-primary/20 p-6 rounded-lg space-y-3">
-                <h3 className="text-xl font-semibold">What We Record:</h3>
-                <p>
-                  ✅ <strong>Your microphone input only</strong> (your voice)
-                </p>
-                <h3 className="text-xl font-semibold mt-4">
-                  What We DON'T Record:
+                <h3 className="text-xl font-semibold">
+                  What We CAN Do By Default:
                 </h3>
                 <p>
-                  ❌ <strong>System audio</strong> ("What You Hear" - other
-                  people's voices in calls)
+                  ✅ <strong>Record your microphone input</strong> (your voice)
+                </p>
+                <p>
+                  ✅ <strong>Record System audio outside of meetings</strong>{" "}
+                  (for capturing media, tutorials, etc.)
+                </p>
+                <h3 className="text-xl font-semibold mt-8">
+                  What We CAN'T Do By Default:
+                </h3>
+                <p>
+                  ❌{" "}
+                  <strong>
+                    Record your microphone without Voice Isolation
+                  </strong>{" "}
+                  (Background Chatter)
+                </p>
+                <p>
+                  ❌ <strong>Record System audio in Meetings</strong> ("What You
+                  Hear" - other people's voices in calls)
+                </p>
+                <hr className="my-4 border-t border-primary/20" />
+                <p className="text-sm">
+                  Retrace does not record your microphone without voice
+                  isolation in order to not accidentally pick up the voice of
+                  anyone else around you. You may turn this off by explicitly
+                  clicking that you have obtained consent to record the people
+                  around you.
                 </p>
                 <p className="text-sm">
-                  Retrace does not tap into system audio or record the other
-                  side of your calls. This ensures the privacy of people you
-                  communicate with is protected.
+                  Retrace does not automatically record system audio during
+                  active meetings to protect the privacy of other call
+                  participants. However, System audio can still be enabled
+                  during meetings if you explicitly click that you have obtained
+                  consent from all parties.
                 </p>
               </div>
 
