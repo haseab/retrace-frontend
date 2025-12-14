@@ -188,9 +188,9 @@ export default function TermsPage() {
             <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">System Requirements</h2>
               <p>
-                Retrace requires macOS 13.0 or later. Apple Silicon Macs are
-                recommended for optimal performance. You are responsible for
-                ensuring your system meets these requirements.
+                Retrace requires macOS 13.0 or later. For Apple Silicon Macs.
+                You are responsible for ensuring your system meets these
+                requirements.
               </p>
             </section>
 

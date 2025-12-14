@@ -2,9 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { DownloadButton } from "@/components/ui/download-button";
-import {
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
@@ -153,7 +151,7 @@ export function HeroBase({
               </div>
 
               <p className="text-sm sm:text-base text-muted-foreground mt-2">
-                macOS 13.0+ • Apple Silicon Recommended
+                macOS 13.0+ • Apple Silicon
               </p>
             </motion.div>
           </div>

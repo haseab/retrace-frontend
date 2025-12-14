@@ -59,7 +59,7 @@ const faqCategories = [
     questions: [
       {
         q: "What are the system requirements?",
-        a: "Minimum: macOS 13.0 (Ventura), 4GB RAM, 2GB free disk space. Recommended: Apple Silicon Mac (M1 or later), 8GB+ RAM, 10GB+ free disk space for history storage.",
+        a: "Minimum: macOS 13.0 (Ventura), 4GB RAM, 2GB free disk space. Strongly Recommended: Apple Silicon Mac (M1 or later), 8GB+ RAM, 10GB+ free disk space for history storage.",
       },
       {
         q: "How much disk space does it use?",
@@ -75,7 +75,7 @@ const faqCategories = [
       },
       {
         q: "Can I use it on Intel Macs?",
-        a: "Yes, Retrace supports both Intel and Apple Silicon Macs running macOS 13.0 or later. However, performance is significantly better on Apple Silicon due to hardware-accelerated machine learning for OCR.",
+        a: "Retrace has only been tested on Apple Silicon Macs and cannot guarantee that it will work on Intel Macs. All operations are optimized for Apple Silicon.",
       },
       {
         q: "Does it work with multiple monitors?",
@@ -121,7 +121,7 @@ const faqCategories = [
       },
       {
         q: "High CPU/memory usage",
-        a: "OCR processing can be CPU-intensive, especially on Intel Macs. You can reduce the capture frequency in Settings to decrease resource usage. On Apple Silicon, this should rarely be an issue.",
+        a: "OCR processing can be CPU-intensive, especially on Intel Macs. You can reduce the capture frequency in Settings to decrease resource usage. However on Apple Silicon, this should rarely be an issue.",
       },
       {
         q: "How to completely uninstall",
