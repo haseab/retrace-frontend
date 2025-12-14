@@ -132,31 +132,6 @@ export default function PrivacyPage() {
                   consent from all parties.
                 </p>
               </div>
-
-              <div className="space-y-4 mt-6">
-                <h3 className="text-xl font-semibold">
-                  Context-Triggered Recording
-                </h3>
-                <p>
-                  Audio recording is <strong>NOT active 24/7</strong>. It only
-                  activates when:
-                </p>
-                <ul className="space-y-2">
-                  <li>
-                    • Specific meeting software is detected (Zoom, Google Meet,
-                    FaceTime, etc.)
-                  </li>
-                  <li>• You manually toggle recording on</li>
-                </ul>
-                <div className="bg-muted p-4 rounded-lg">
-                  <p className="font-semibold">Automatic Fail-Safe:</p>
-                  <p className="text-sm">
-                    Recording automatically disables after{" "}
-                    <strong>5 minutes</strong> of no meeting software detection,
-                    preventing accidental continuous recording.
-                  </p>
-                </div>
-              </div>
             </section>
 
             {/* Restricted Visual Capture */}
@@ -215,11 +190,6 @@ export default function PrivacyPage() {
                     <li>💬 Encrypted messaging (Signal, Telegram, WhatsApp)</li>
                     <li>⚙️ Custom apps you specify</li>
                   </ul>
-                  <p className="text-sm bg-muted p-4 rounded-lg mt-2">
-                    These apps are strictly excluded <strong>before</strong> any
-                    screenshot is taken. The data never exists in the first
-                    place.
-                  </p>
                 </div>
               </div>
             </section>
