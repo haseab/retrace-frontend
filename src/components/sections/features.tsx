@@ -17,36 +17,44 @@ const features = [
     title: "Local-First Privacy",
     description:
       "All data stays on your Mac, encrypted at rest with your device's keychain. No servers, no cloud, no third-party access.",
+    available: true,
   },
   {
     icon: Search,
     title: "Intelligent Search",
     description:
       "Find anything you've seen with natural language queries. OCR and text extraction work locally on your device.",
+    available: true,
+    note: "Coming soon (estimated Jan 1)",
   },
   {
     icon: Clock,
     title: "Timeline Scrolling View",
     description:
       "Navigate your screen history with an intuitive timeline interface. Scroll through your past activity and jump to any moment instantly.",
+    available: true,
   },
   {
     icon: HardDrive,
     title: "~4000x Compression",
     description:
       "Advanced compression technology means your entire screen history takes only 10-15 GB per month. Store months of data without filling your drive. Easy Exporting.",
+    available: true,
+    note: "Coming soon (estimated Jan 1)",
   },
   {
     icon: ArrowRightLeft,
     title: "Rewind Migration",
     description:
       "Seamlessly migrate your existing Rewind data to Retrace. Import your screen history and continue where you left off.",
+    available: true,
   },
   {
     icon: Code,
     title: "100% Open Source",
     description:
       "GPL v3 licensed. Audit the code yourself, verify no data leaves your Mac, and contribute improvements.",
+    available: true,
   },
 ];
 
@@ -70,6 +78,7 @@ export function Features() {
               title={feature.title}
               description={feature.description}
               delay={index * 0.1}
+              note={feature.note}
             />
           ))}
         </div>

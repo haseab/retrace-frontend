@@ -2,9 +2,14 @@
 
 import { Badge } from "@/components/ui/badge";
 import { DownloadButton } from "@/components/ui/download-button";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
-import { Check, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useState } from "react";
 
 const LATEST_VERSION = "1.0.0";
@@ -27,17 +32,6 @@ export function HeroBase({
   trackingSource,
 }: HeroBaseProps) {
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText("brew install --cask retrace");
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -132,23 +126,29 @@ export function HeroBase({
                 <div className="flex-1 h-px bg-white/10" />
               </div>
 
-              <div className="hidden sm:flex group relative items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs">
-                <code className="text-sm text-muted-foreground">
-                  <span className="text-blue-400">$</span> brew install --cask
-                  retrace
-                </code>
-                <button
-                  onClick={handleCopy}
-                  className="ml-2 p-1 rounded hover:bg-white/10 transition-colors"
-                  aria-label="Copy to clipboard"
-                >
-                  {isCopied ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-              </div>
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="hidden sm:flex group relative items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs opacity-50 cursor-not-allowed">
+                      <code className="text-sm text-muted-foreground">
+                        <span className="text-blue-400">$</span> brew install --cask
+                        retrace
+                      </code>
+                      <button
+                        onClick={(e) => e.preventDefault()}
+                        disabled
+                        className="ml-2 p-1 rounded cursor-not-allowed"
+                        aria-label="Copy to clipboard (disabled)"
+                      >
+                        <Copy className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Estimated Jan 1</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               <p className="text-sm sm:text-base text-muted-foreground mt-2">
                 macOS 13.0+ • Apple Silicon

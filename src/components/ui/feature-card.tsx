@@ -10,6 +10,7 @@ interface FeatureCardProps {
   description: string;
   className?: string;
   delay?: number;
+  note?: string;
 }
 
 export function FeatureCard({
@@ -18,6 +19,7 @@ export function FeatureCard({
   description,
   className,
   delay = 0,
+  note,
 }: FeatureCardProps) {
   return (
     <motion.div
@@ -37,6 +39,11 @@ export function FeatureCard({
         </div>
         <h3 className="text-xl font-semibold">{title}</h3>
         <p className="text-muted-foreground">{description}</p>
+        {note && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+            {note}
+          </p>
+        )}
       </div>
     </motion.div>
   );

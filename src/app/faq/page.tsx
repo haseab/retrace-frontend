@@ -27,6 +27,14 @@ const faqCategories = [
         q: "Is it really free and open source?",
         a: "Yes! Retrace is licensed under GPL v3, which means the source code is publicly available, you can modify it, and it will always remain free. You can view the code on GitHub and even build it yourself from source.",
       },
+      {
+        q: "What features are available in Release #1 (December 19th)?",
+        a: "Release #1 includes: Rewind data migration, database decryption, timeline scrolling, continuous screen recording, basic search (no highlighting yet), keyboard shortcuts, frame deletion, and non-optimized file storage/power use. Audio recording is NOT yet available in Release #1.",
+      },
+      {
+        q: "What's coming in Release #2 (estimated January 1st)?",
+        a: "Release #2 will add: Audio recording (with privacy controls for mic & system audio), optimized power use & file storage, search highlighting, deep linking to timestamps, customizability options (language support, retention windows), daily recap, metadata filtering, ability to copy text from search, privacy protections (PII filtering, face blurring), and permission checking.",
+      },
     ],
   },
   {
@@ -63,7 +71,7 @@ const faqCategories = [
       },
       {
         q: "How much disk space does it use?",
-        a: "This depends on your screen capture frequency and retention settings. On average, expect 1-2GB per week of continuous recording. You can configure capture frequency and automatic deletion of old captures in settings.",
+        a: "Release #1 uses non-optimized file storage. On average, expect 1-2GB per week of continuous recording. Release #2 (estimated January 1st) will include optimized file storage that significantly reduces disk usage. You can configure capture frequency and automatic deletion of old captures in settings.",
       },
       {
         q: "Does it slow down my Mac?",
@@ -71,7 +79,7 @@ const faqCategories = [
       },
       {
         q: "How much battery does it consume?",
-        a: "On Apple Silicon Macs, the battery impact is minimal (typically <5% of total battery usage). Intel Macs may see slightly higher battery consumption during OCR processing.",
+        a: "Release #1 uses non-optimized power consumption. On Apple Silicon Macs, expect moderate battery impact. Release #2 (estimated January 1st) will include power optimizations to minimize battery drain. Intel Macs may see higher battery consumption during OCR processing.",
       },
       {
         q: "Can I use it on Intel Macs?",
@@ -88,11 +96,11 @@ const faqCategories = [
     questions: [
       {
         q: "How do I search my history?",
-        a: "Use natural language queries in the search bar. For example, 'email from John about project' or 'YouTube video about cooking'. Retrace uses both OCR text and fuzzy matching to find relevant results.",
+        a: "Use natural language queries in the search bar. For example, 'email from John about project' or 'YouTube video about cooking'. Retrace uses both OCR text and fuzzy matching to find relevant results. Note: Search result highlighting is estimated for January 1st release.",
       },
       {
         q: "Can I exclude certain apps from recording?",
-        a: "Yes. You can configure app exclusions in Settings > Privacy. For example, you might want to exclude password managers, banking apps, or private browsing windows.",
+        a: "Yes. You can configure app exclusions in Settings > Privacy. For example, you might want to exclude password managers, banking apps, or private browsing windows. Note: Enhanced privacy protection features (PII filtering, face blurring) are estimated for January 1st release.",
       },
       {
         q: "How do I pause recording?",
@@ -100,11 +108,15 @@ const faqCategories = [
       },
       {
         q: "Can I import data from Rewind or other apps?",
-        a: "Currently, import from other screen recording apps is not supported. This is a planned feature for future releases.",
+        a: "Yes! Retrace supports one-click migration of your Rewind data. This feature is available in Release #1 (December 19th).",
       },
       {
         q: "How far back does the history go?",
-        a: "This depends on your storage settings. By default, Retrace keeps 30 days of history. You can configure this in Settings to keep more or less history based on your available disk space.",
+        a: "This depends on your storage settings. By default, Retrace keeps 30 days of history. You can configure retention windows in Settings (estimated for January 1st release) to keep more or less history based on your available disk space.",
+      },
+      {
+        q: "Does Retrace record audio?",
+        a: "Audio recording (microphone and system audio) is not available in Release #1 (December 19th). It will be added in Release #2 (estimated January 1st) with strict privacy controls - microphone can run 24/7 (captures only your voice), while system audio is automatically muted during meetings to protect others' privacy.",
       },
     ],
   },
