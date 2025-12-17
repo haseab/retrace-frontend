@@ -35,7 +35,7 @@ export function CrispChat() {
 // Type declarations for TypeScript
 declare global {
   interface Window {
-    $crisp: any[];
-    CRISP_WEBSITE_ID: string;
+    $crisp?: any[];
+    CRISP_WEBSITE_ID?: string;
   }
 }
