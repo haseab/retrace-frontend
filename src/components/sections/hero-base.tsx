@@ -145,7 +145,7 @@ export function HeroBase({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Estimated Jan 1</p>
+                    <p>Coming soon</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

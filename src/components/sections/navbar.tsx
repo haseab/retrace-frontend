@@ -9,12 +9,12 @@ import {
 } from "@/components/ui/tooltip";
 import { SITE_CONFIG } from "@/lib/config";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
 import { Download, Menu, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FaGithub } from "react-icons/fa";
-import { motion, AnimatePresence } from "framer-motion";
 
 const navigation = [
   { name: "Features", href: "/#features" },
@@ -35,7 +35,6 @@ export function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -106,7 +105,7 @@ export function Navbar() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Available Dec 19</p>
+                  <p>Available Jan 3</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -136,41 +135,41 @@ export function Navbar() {
                 className="md:hidden fixed top-16 left-0 right-0 bottom-0 border-t border-border py-4 space-y-2 bg-background/95"
               >
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                {navigation.map((item) =>
-                  item.name === "Docs" ? (
-                    <span
-                      key={item.name}
-                      className="block px-4 py-2 text-sm font-medium cursor-not-allowed"
-                      style={{ color: "#6b7280" }}
-                    >
-                      {item.name} (Coming soon)
-                    </span>
-                  ) : (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className="block px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent rounded-md"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      target={
-                        item.href.startsWith("http") ? "_blank" : undefined
-                      }
-                    >
-                      {item.name}
-                    </Link>
-                  )
-                )}
-                <Link
-                  href={SITE_CONFIG.links.github}
-                  target="_blank"
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <FaGithub className="h-4 w-4" />
-                  GitHub
-                </Link>
-              </div>
-            </motion.div>
-          )}
+                  {navigation.map((item) =>
+                    item.name === "Docs" ? (
+                      <span
+                        key={item.name}
+                        className="block px-4 py-2 text-sm font-medium cursor-not-allowed"
+                        style={{ color: "#6b7280" }}
+                      >
+                        {item.name} (Coming soon)
+                      </span>
+                    ) : (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className="block px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent rounded-md"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        target={
+                          item.href.startsWith("http") ? "_blank" : undefined
+                        }
+                      >
+                        {item.name}
+                      </Link>
+                    )
+                  )}
+                  <Link
+                    href={SITE_CONFIG.links.github}
+                    target="_blank"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <FaGithub className="h-4 w-4" />
+                    GitHub
+                  </Link>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </nav>

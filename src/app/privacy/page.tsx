@@ -443,8 +443,8 @@ export default function PrivacyPage() {
                   Snitch to verify no data leaves your Mac
                 </li>
                 <li>
-                  <strong>GPL v3 License:</strong> Ensures the code remains open
-                  and auditable forever
+                  <strong>MIT License:</strong> Ensures the code remains open
+                  and auditable
                 </li>
               </ul>
             </section>

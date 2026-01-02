@@ -52,7 +52,7 @@ export function DownloadButton({
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Available Dec 19</p>
+            <p>Available Jan 20</p>
           </TooltipContent>
         </Tooltip>
       </div>

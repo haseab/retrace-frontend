@@ -175,7 +175,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## License
 
-This project is licensed under GPL v3 - see [LICENSE](LICENSE) for details.
+This project is licensed under MIT - see [LICENSE](LICENSE) for details.
 
 ## Privacy
 

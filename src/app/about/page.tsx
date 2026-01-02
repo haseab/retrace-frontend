@@ -174,7 +174,7 @@ export default function AboutPage() {
               <p className="text-lg text-muted-foreground leading-relaxed">
                 I was hyperfocused on concurrency. I had 3 Claude Code sessions
                 open at the same time. My goal was to launch with feature parity
-                with Rewind by December 19th.
+                with Rewind by January 20th.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
                 I had to make snap decisions. What will the name be? I thought
@@ -221,8 +221,8 @@ export default function AboutPage() {
               <h2 className="text-3xl font-bold">Open Source Commitment</h2>
               <div className="prose prose-lg max-w-none dark:prose-invert space-y-2">
                 <p className="text-muted-foreground leading-relaxed">
-                  Retrace is licensed under GPL v3, one of the strongest
-                  copyleft licenses. This ensures:
+                  Retrace is licensed under MIT, one of the most permissive
+                  open source licenses. This ensures:
                 </p>
                 <ul className="space-y-2 text-muted-foreground">
                   <li>The source code will always be publicly available</li>
@@ -233,9 +233,8 @@ export default function AboutPage() {
                     You're free to modify and distribute your own versions
                   </li>
                   <li>
-                    Any derivative works must also be open source under GPL v3
+                    Minimal restrictions on how you can use or modify the code
                   </li>
-                  <li>The project can never be "taken private"</li>
                 </ul>
               </div>
 

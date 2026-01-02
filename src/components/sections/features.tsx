@@ -25,7 +25,7 @@ const features = [
     description:
       "Find anything you've seen with natural language queries. OCR and text extraction work locally on your device.",
     available: true,
-    note: "Coming soon (estimated Jan 1)",
+    note: "Coming soon",
   },
   {
     icon: Clock,
@@ -40,7 +40,7 @@ const features = [
     description:
       "Advanced compression technology means your entire screen history takes only 10-15 GB per month. Store months of data without filling your drive. Easy Exporting.",
     available: true,
-    note: "Coming soon (estimated Jan 1)",
+    note: "Coming soon",
   },
   {
     icon: ArrowRightLeft,
@@ -53,7 +53,7 @@ const features = [
     icon: Code,
     title: "100% Open Source",
     description:
-      "GPL v3 licensed. Audit the code yourself, verify no data leaves your Mac, and contribute improvements.",
+      "MIT licensed. Audit the code yourself, verify no data leaves your Mac, and contribute improvements.",
     available: true,
   },
 ];

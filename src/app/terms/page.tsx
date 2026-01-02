@@ -4,7 +4,7 @@ import { AlertCircle, CheckCircle, FileText } from "lucide-react";
 export const metadata = {
   title: "Terms of Service - Retrace",
   description:
-    "Retrace terms of service. Free and open source software under GPL v3 license.",
+    "Retrace terms of service. Free and open source software under MIT license.",
 };
 
 export default function TermsPage() {
@@ -37,7 +37,7 @@ export default function TermsPage() {
               <h2 className="text-3xl font-bold">Open Source License</h2>
               <p>
                 Retrace is licensed under the{" "}
-                <strong>GNU General Public License v3.0 (GPL v3)</strong>. This
+                <strong>MIT License</strong>. This
                 means:
               </p>
               <ul className="space-y-2">
@@ -48,8 +48,7 @@ export default function TermsPage() {
                 <li>✅ You can modify the source code to suit your needs</li>
                 <li>✅ You can distribute copies of Retrace</li>
                 <li>
-                  ✅ You can distribute modified versions, but they must also be
-                  under GPL v3
+                  ✅ You can distribute modified versions with minimal restrictions
                 </li>
                 <li>
                   ✅ The source code is publicly available on{" "}
@@ -62,9 +61,8 @@ export default function TermsPage() {
                 </li>
               </ul>
               <p className="text-sm text-muted-foreground bg-muted p-4 rounded-lg">
-                <strong>Important:</strong> If you distribute Retrace or
-                derivative works, you must make the source code available under
-                the same GPL v3 license.
+                <strong>Important:</strong> The MIT license requires you to include
+                the original copyright and license notice in any copy of the software.
               </p>
             </section>
 
@@ -105,11 +103,7 @@ export default function TermsPage() {
                       intellectual property
                     </li>
                     <li>
-                      ❌ Distributing closed-source or proprietary versions
-                      (violates GPL v3)
-                    </li>
-                    <li>
-                      ❌ Removing or modifying license or copyright notices
+                      ❌ Removing copyright or license notices from the code
                     </li>
                   </ul>
                 </div>
@@ -227,7 +221,7 @@ export default function TermsPage() {
               <p>
                 You may stop using Retrace at any time by uninstalling the
                 application and deleting all associated data. Your rights under
-                the GPL v3 license persist even after you stop using the
+                the MIT license persist even after you stop using the
                 software.
               </p>
             </section>
@@ -246,7 +240,7 @@ export default function TermsPage() {
             <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Contact</h2>
               <p>
-                For questions about these Terms of Service or the GPL v3
+                For questions about these Terms of Service or the MIT
                 license, email{" "}
                 <a
                   href="mailto:support@retrace.to"
@@ -256,9 +250,9 @@ export default function TermsPage() {
                 </a>
               </p>
               <p className="mt-4">
-                You can also view the full GPL v3 license{" "}
+                You can also view the full MIT license{" "}
                 <a
-                  href="https://www.gnu.org/licenses/gpl-3.0.en.html"
+                  href="https://opensource.org/licenses/MIT"
                   className="text-primary hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
