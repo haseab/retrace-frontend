@@ -91,7 +91,7 @@ export const faqCategories = [
       },
       {
         q: "Does Retrace record audio?",
-        a: "Not yet. This will be added in a future update.",
+        a: "Not yet. Audio recording is a coming soon feature that will be added in a future update.",
       },
     ],
   },

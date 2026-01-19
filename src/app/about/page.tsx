@@ -40,7 +40,7 @@ export default function AboutPage() {
             >
               <h2 className="text-3xl font-bold">The Story</h2>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                This project started 6 days before its launch.
+                This project started 6 days before Rewind AI shut down.
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
                 Limitless announced that they got acquired by Meta. Everyone had
@@ -61,14 +61,14 @@ export default function AboutPage() {
                 I personally consider myself one of Rewinds biggest power users,
                 using it dozens of times a day to manually track my time. If I
                 had to pay triple what I was paying for it, I likely would have.
-                And so you could imagine how I felt when I saw the news.
+
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
                 I used the app so much, that I even created a Raycast extension
                 that allowed you to enter in natural language at what point in
                 your rewind history you want to go to, (e.g. 15 minutes ago, or
                 sep 1 2:33pm) and it would open it up at precisely that point in
-                time. It even got 120 other people using it too, which was
+                time. Surprisingly, 120 other people used it too, which was
                 pretty cool.
               </p>
 
@@ -100,7 +100,7 @@ export default function AboutPage() {
               {/* Comparison Table Image */}
               <div className="my-8 rounded-lg border border-border bg-card overflow-hidden">
                 <img
-                  src="https://pub-7712ec77fabb4a6d996c607b226d98f0.r2.dev/rewind-alternatives.jpg"
+                  src="https://pub-7712ec77fabb4a6d996c607b226d98f0.r2.dev/rewind-alternatives.png"
                   alt="Main Rewind Features comparison table showing feature parity across different alternatives"
                   className="w-full h-auto"
                 />
@@ -150,59 +150,13 @@ export default function AboutPage() {
                   "you know what? fuck it. I've never programmed in swift
                   before, I've never built a desktop application. I've only
                   built web apps. Not only will I recreate Rewind with feature
-                  parity in 6 days, but I'm going to also make it free and open
+                  parity, but I'm going to also make it free and open
                   source."
                 </strong>
               </p>
+
               <p className="text-lg text-muted-foreground leading-relaxed">
-                And so the clock started.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                I learned everything I could about Swift in a few hours, about
-                building a desktop application vs a web app, about best
-                practices, etc. Luckily, I already did some thinking on the
-                architecture a few days earlier, so my focus was just on
-                executing.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                I did not take an hour off, simply because I couldn't afford to;
-                this was a BIG project. Rewind apparently spent 2 years
-                developing the product with multiple engineers before releasing
-                it. I had to compress that into 6 days. Luckily I had Claude
-                Code.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                I was hyperfocused on concurrency. I had 3 Claude Code sessions
-                open at the same time. My goal was to launch with feature parity
-                with Rewind by January 20th.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                I had to make snap decisions. What will the name be? I thought
-                of Glint, Trace, Refind, Rerun, Retrace. Now I have to find an
-                available domain name. That took an hour to ideate and get. Then
-                the logo. 15 minutes. Then creating & launching the website? 3
-                hours.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                While building, I found a happy accident: Rewind encrypts the
-                SQLite database by default, but didn't encrypt the raw
-                picture/video files. Which was great for us because I could help
-                everyone migrate their Rewind screenshots over and rebuild the
-                database! (although not perfectly)
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                What I didn't like about Rewind / Limitless was that they didn't
-                really prioritize the privacy of others that coincided with
-                their products. People would get their voice recorded or their
-                face captured without consent. And so I wanted to make that a
-                hard constraint for Retrace. This means blurring faces during
-                meetings, not recording system audio but only recording mic
-                audio during meetings, auto-redacting any PII.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Currently, i'm making progress with building the product. This
-                website is done, the backend is mostly stable, now what's the
-                left is to create the UI.
+                And 14 days of work later, here we are!
               </p>
             </motion.div>
           </div>
@@ -264,7 +218,7 @@ export default function AboutPage() {
         {/* Creator Profile */}
         <section className="px-4 sm:px-6 lg:px-8 py-12 bg-muted/30">
           <div className="mx-auto max-w-4xl">
-            <h2 className="text-3xl font-bold text-center mb-8">Built By</h2>
+            {/* <h2 className="text-3xl font-bold text-center mb-8">Built By</h2> */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}

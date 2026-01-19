@@ -27,6 +27,7 @@ const navigation = [
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [starCount, setStarCount] = useState<number | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,6 +35,17 @@ export function Navbar() {
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    fetch("https://api.github.com/repos/haseab/retrace")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.stargazers_count) {
+          setStarCount(data.stargazers_count);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -92,9 +104,14 @@ export function Navbar() {
             </div>
 
             <div className="hidden md:flex md:items-center md:gap-4">
-              <Button variant="ghost" size="icon" asChild>
+              <Button variant="ghost" size="sm" asChild className="gap-2">
                 <Link href={SITE_CONFIG.links.github} target="_blank">
                   <FaGithub className="h-5 w-5" />
+                  {starCount !== null && (
+                    <span className="flex items-center gap-1 text-sm">
+                      ⭐ {starCount.toLocaleString()}
+                    </span>
+                  )}
                 </Link>
               </Button>
               <Tooltip>
@@ -166,6 +183,11 @@ export function Navbar() {
                   >
                     <FaGithub className="h-4 w-4" />
                     GitHub
+                    {starCount !== null && (
+                      <span className="flex items-center gap-1">
+                        ⭐ {starCount.toLocaleString()}
+                      </span>
+                    )}
                   </Link>
                 </div>
               </motion.div>

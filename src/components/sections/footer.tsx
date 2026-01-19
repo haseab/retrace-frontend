@@ -153,8 +153,8 @@ export function Footer() {
             </div>
           </div>
 
-          <div className="flex mt-12 border-t border-border pt-8 justify-center">
-            <p className="text-sm text-muted-foreground mb-4">
+          <div className="flex flex-col items-center mt-12 border-t border-border pt-8">
+            <p className="text-sm text-muted-foreground mb-2">
               Made with ❤️ by{" "}
               <Link
                 href="https://twitter.com/haseab_"
@@ -162,6 +162,16 @@ export function Footer() {
                 className="text-blue-400 hover:text-blue-300 transition-colors"
               >
                 haseab
+              </Link>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Support the project{" "}
+              <Link
+                href="https://buymeacoffee.com/haseab"
+                target="_blank"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                here
               </Link>
             </p>
           </div>

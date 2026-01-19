@@ -30,9 +30,10 @@ export default function PrivacyPage() {
               </p>
               <ul className="space-y-2">
                 <li>✅ Minimizes data collection by default</li>
-                <li>✅ Protects the privacy of others in your recordings</li>
+                <li>✅ Protects the privacy of others in your recordings by default</li>
                 <li>
-                  ✅ Strictly limits audio recording to your microphone only
+                  ✅ Strictly limits audio recording to your microphone only by default{" "}
+                  <span className="text-xs text-muted-foreground italic">(coming soon)</span>
                 </li>
                 <li>
                   ✅ Gives you complete control over what is captured and stored
@@ -56,7 +57,8 @@ export default function PrivacyPage() {
               </p>
               <ul className="space-y-2">
                 <li>
-                  <strong>Audio recordings:</strong> Stored locally on your Mac
+                  <strong>Audio recordings:</strong> Stored locally on your Mac{" "}
+                  <span className="text-xs text-muted-foreground italic">(coming soon)</span>
                 </li>
                 <li>
                   <strong>Screen captures:</strong> Stored locally on your Mac
@@ -85,6 +87,7 @@ export default function PrivacyPage() {
               <h2 className="text-3xl font-bold flex items-center gap-2">
                 <Mic className="h-7 w-7 text-primary" />
                 Restricted Default Audio Capture ("Mic-Only" Clause)
+                <span className="text-sm font-normal text-muted-foreground italic">(coming soon)</span>
               </h2>
               <p className="font-semibold text-lg">
                 Retrace protects the privacy of others in your conversations.
@@ -233,7 +236,8 @@ export default function PrivacyPage() {
               <ul className="space-y-2">
                 <li>
                   <strong>Audio files:</strong> Your microphone recordings (only
-                  during meetings)
+                  during meetings){" "}
+                  <span className="text-xs text-muted-foreground italic">(coming soon)</span>
                 </li>
                 <li>
                   <strong>Screen captures:</strong> Images of your screen
@@ -348,7 +352,8 @@ export default function PrivacyPage() {
               <ul className="space-y-2">
                 <li>
                   • <strong>Audio transcription:</strong> Apple's Speech
-                  Recognition framework
+                  Recognition framework{" "}
+                  <span className="text-xs text-muted-foreground italic">(coming soon)</span>
                 </li>
                 <li>
                   • <strong>OCR:</strong> Apple Vision framework
@@ -442,7 +447,8 @@ export default function PrivacyPage() {
                   <ul className="space-y-2">
                     <li>
                       Audio files: Standard audio formats in{" "}
-                      <code>~/Library/Application Support/Retrace/audio/</code>
+                      <code>~/Library/Application Support/Retrace/audio/</code>{" "}
+                      <span className="text-xs text-muted-foreground italic">(coming soon)</span>
                     </li>
                     <li>
                       Screen captures: PNG/JPEG files in{" "}
@@ -522,17 +528,6 @@ export default function PrivacyPage() {
               </ul>
             </section>
 
-            {/* Final Note */}
-            <div className="mt-12 rounded-xl border border-border bg-card p-8 not-prose">
-              <p className="text-lg font-semibold text-center">
-                Privacy isn't a feature. It's a fundamental right.
-              </p>
-              <p className="text-center text-muted-foreground mt-2">
-                That's why we built Retrace to be local-first from day
-                one—protecting both your privacy and the privacy of those around
-                you.
-              </p>
-            </div>
           </div>
         </div>
       </section>
