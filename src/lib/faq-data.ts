@@ -4,7 +4,7 @@ export const faqCategories = [
     questions: [
       {
         q: "What is Retrace?",
-        a: "Retrace is a local-first screen recording and search application for macOS. It continuously captures your screen, extracts text using OCR, and lets you search through your entire screen history using search queries. Unlike cloud-based alternatives, all data stays encrypted on your Mac.",
+        a: "Retrace is a local-first screen recording and search application for macOS. It continuously captures your screen, extracts text using OCR, and lets you search through your entire screen history using search queries. Unlike cloud-based alternatives, all data stays on your Mac.",
       },
       {
         q: "How is it different from Rewind AI?",
@@ -21,15 +21,11 @@ export const faqCategories = [
     questions: [
       {
         q: "Where is my data stored?",
-        a: "All your personal data is stored locally on your Mac in ~/Library/Application Support/Retrace/. Screen captures are saved as encrypted image files, and extracted text is stored in a local SQLite database.",
-      },
-      {
-        q: "Is my personal data encrypted?",
-        a: "Yes if you choose to encrypt it. If you toggle encryption, your database will be encrypted, however your screen captures / audio files currently cannot not be encrypted to make the app usable. This is consistent with Rewind's encryption behaviour, except that Rewind did not give you the option to encrypt/decrypt your database.",
+        a: "All your personal data is stored locally on your Mac in ~/Library/Application Support/Retrace/. Screen captures are saved as image files, and extracted text is stored in a local SQLite database.",
       },
       {
         q: "Can anyone else access my screen history?",
-        a: "No. Since all data is stored locally on your Mac and encrypted with your device's keychain, only you (with your Mac login credentials) can access your screen history.",
+        a: "No. Since all data is stored locally on your Mac, only you (with your Mac login credentials) can access your screen history.",
       },
       {
         q: "Do you send data to any servers?",

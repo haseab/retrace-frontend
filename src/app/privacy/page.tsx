@@ -56,12 +56,10 @@ export default function PrivacyPage() {
               </p>
               <ul className="space-y-2">
                 <li>
-                  <strong>Audio recordings:</strong> Stored locally as encrypted
-                  files
+                  <strong>Audio recordings:</strong> Stored locally on your Mac
                 </li>
                 <li>
-                  <strong>Screen captures:</strong> Stored locally in encrypted
-                  format
+                  <strong>Screen captures:</strong> Stored locally on your Mac
                 </li>
                 <li>
                   <strong>Transcripts:</strong> Stored in local SQLite database
@@ -235,11 +233,11 @@ export default function PrivacyPage() {
               <ul className="space-y-2">
                 <li>
                   <strong>Audio files:</strong> Your microphone recordings (only
-                  during meetings), encrypted
+                  during meetings)
                 </li>
                 <li>
                   <strong>Screen captures:</strong> Images of your screen
-                  activity, stored in encrypted format
+                  activity
                 </li>
                 <li>
                   <strong>Transcripts:</strong> Audio-to-text transcriptions,
@@ -260,10 +258,6 @@ export default function PrivacyPage() {
                 <li>
                   <strong>User preferences:</strong> App settings and
                   configurations
-                </li>
-                <li>
-                  <strong>Encryption keys:</strong> Managed securely by macOS
-                  Keychain
                 </li>
               </ul>
               <p className="text-sm text-muted-foreground bg-muted p-4 rounded-lg">
@@ -343,19 +337,6 @@ export default function PrivacyPage() {
               </ul>
             </section>
 
-            {/* Encryption */}
-            <section className="mt-12 space-y-4">
-              <h2 className="text-3xl font-bold">Encryption at Rest</h2>
-              <p>
-                Your local database (SQLite/Vector DB) and audio files are
-                encrypted using:
-              </p>
-              <ul className="space-y-2">
-                <li>• macOS native encryption (FileVault)</li>
-                <li>• App-specific encryption for sensitive files</li>
-                <li>• Encryption keys managed by macOS Keychain</li>
-              </ul>
-            </section>
 
             {/* On-Device AI */}
             <section className="mt-12 space-y-4">

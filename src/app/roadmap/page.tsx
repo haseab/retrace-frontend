@@ -95,12 +95,6 @@ const roadmapItems = {
       status: "completed",
       version: "v1.0.0",
     },
-    {
-      title: "Encrypted Storage",
-      description: "All data encrypted at rest with macOS keychain",
-      status: "completed",
-      version: "v1.0.0",
-    },
   ],
 };
 

@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Retrace - Your Screen History, Searchable & Private",
   description:
-    "Local-first screen recording and search for macOS. All data stays on your Mac, encrypted and private. Open source alternative to Rewind AI.",
+    "Local-first screen recording and search for macOS. All data stays on your Mac, private. Open source alternative to Rewind AI.",
   keywords: [
     "screen recording",
     "macOS",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Retrace - Your Screen History, Searchable & Private",
     description:
-      "Local-first screen recording and search for macOS. All data stays on your Mac, encrypted and private.",
+      "Local-first screen recording and search for macOS. All data stays on your Mac, private.",
     type: "website",
     locale: "en_US",
   },
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Retrace - Your Screen History, Searchable & Private",
     description:
-      "Local-first screen recording and search for macOS. All data stays on your Mac, encrypted and private.",
+      "Local-first screen recording and search for macOS. All data stays on your Mac, private.",
   },
 };
 

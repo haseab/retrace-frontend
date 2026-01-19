@@ -16,7 +16,7 @@ const features = [
     icon: Shield,
     title: "Local-First Privacy",
     description:
-      "All data stays on your Mac, encrypted at rest with your device's keychain. No servers, no cloud, no third-party access.",
+      "All data stays on your Mac. No servers, no cloud, no third-party access.",
     available: true,
   },
   {

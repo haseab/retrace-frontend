@@ -19,9 +19,9 @@ const steps = [
   },
   {
     icon: Database,
-    title: "Encrypted Storage",
+    title: "Local Storage",
     description:
-      "Stores everything in an encrypted SQLite database on your Mac",
+      "Stores everything in a SQLite database on your Mac",
   },
   {
     icon: Sparkles,
