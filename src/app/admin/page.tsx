@@ -51,6 +51,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FeedbackItem | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [expandedLogs, setExpandedLogs] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,7 +218,7 @@ export default function AdminPage() {
               {feedback.map((item) => (
                 <div
                   key={item.id}
-                  onClick={() => setSelectedItem(item)}
+                  onClick={() => { setSelectedItem(item); setExpandedLogs(false); }}
                   className={`p-4 bg-[hsl(var(--card))] rounded-xl border cursor-pointer transition-all ${
                     selectedItem?.id === item.id
                       ? "border-[hsl(var(--primary))]"
@@ -364,13 +365,25 @@ export default function AdminPage() {
 
                   {selectedItem.recentLogs.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">
-                        Recent Logs ({selectedItem.recentLogs.length})
-                      </h3>
-                      <div className="bg-[hsl(var(--secondary))] rounded-lg p-3 max-h-60 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))]">
+                          Recent Logs ({selectedItem.recentLogs.length})
+                        </h3>
+                        {selectedItem.recentLogs.length > 50 && (
+                          <button
+                            onClick={() => setExpandedLogs(!expandedLogs)}
+                            className="text-xs text-[hsl(var(--primary))] hover:underline"
+                          >
+                            {expandedLogs ? "Show less" : "Show all"}
+                          </button>
+                        )}
+                      </div>
+                      <div className={`bg-[hsl(var(--secondary))] rounded-lg p-3 overflow-y-auto ${expandedLogs ? "max-h-[500px]" : "max-h-60"}`}>
                         <pre className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap">
-                          {selectedItem.recentLogs.slice(0, 50).join("\n")}
-                          {selectedItem.recentLogs.length > 50 && (
+                          {expandedLogs
+                            ? selectedItem.recentLogs.join("\n")
+                            : selectedItem.recentLogs.slice(0, 50).join("\n")}
+                          {!expandedLogs && selectedItem.recentLogs.length > 50 && (
                             <span className="text-[hsl(var(--primary))]">
                               {"\n"}... and {selectedItem.recentLogs.length - 50} more
                             </span>
