@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Retrace - Your Screen History, Searchable & Private",
+  title: "Retrace - Your Screen History, Searchable & Local",
   description:
     "Local-first screen recording and search for macOS. All data stays on your Mac, private. Open source alternative to Rewind AI.",
   keywords: [
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Retrace Team" }],
   openGraph: {
-    title: "Retrace - Your Screen History, Searchable & Private",
+    title: "Retrace - Your Screen History, Searchable & Local",
     description:
       "Local-first screen recording and search for macOS. All data stays on your Mac, private.",
     type: "website",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Retrace - Your Screen History, Searchable & Private",
+    title: "Retrace - Your Screen History, Searchable & Local",
     description:
       "Local-first screen recording and search for macOS. All data stays on your Mac, private.",
   },

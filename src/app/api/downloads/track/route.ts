@@ -1,33 +1,76 @@
+import { db, initDatabase } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
-// In-memory storage for demo purposes
-// In production, use a database like PostgreSQL, SQLite, or KV store
-const downloadStats = new Map<string, number>();
+// Ensure table exists on first request
+let dbInitialized = false;
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { version, platform, source } = body;
-
-    // Validate input
-    if (!version || !platform) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+    // Initialize database on first request
+    if (!dbInitialized) {
+      await initDatabase();
+      dbInitialized = true;
     }
 
-    // Track download
-    const key = `${version}-${platform}`;
-    const currentCount = downloadStats.get(key) || 0;
-    downloadStats.set(key, currentCount + 1);
-
-    // Log for debugging (in production, save to database)
-    console.log("Download tracked:", {
+    const body = await request.json();
+    const {
       version,
-      platform,
       source,
-      timestamp: new Date().toISOString(),
+      os,
+      osVersion,
+      browser,
+      browserVersion,
+      architecture,
+      platform,
+      language,
+      screenResolution,
+      timezone,
+      referrer,
+      userAgent,
+    } = body;
+
+    // Get IP and geo info from request headers (works with Vercel/Cloudflare)
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0] ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const country =
+      request.headers.get("x-vercel-ip-country") ||
+      request.headers.get("cf-ipcountry") ||
+      "unknown";
+    const city =
+      request.headers.get("x-vercel-ip-city") ||
+      request.headers.get("cf-ipcity") ||
+      "unknown";
+    const region =
+      request.headers.get("x-vercel-ip-country-region") || "unknown";
+
+    // Insert into database
+    await db.execute({
+      sql: `INSERT INTO downloads (
+        version, source, os, os_version, browser, browser_version,
+        architecture, platform, language, screen_resolution, timezone,
+        referrer, user_agent, ip, country, city, region
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        version || null,
+        source || null,
+        os || null,
+        osVersion || null,
+        browser || null,
+        browserVersion || null,
+        architecture || null,
+        platform || null,
+        language || null,
+        screenResolution || null,
+        timezone || null,
+        referrer || null,
+        userAgent || null,
+        ip,
+        country,
+        city,
+        region,
+      ],
     });
 
     return NextResponse.json({
@@ -44,19 +87,51 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  // Return stats
-  const stats = Array.from(downloadStats.entries()).map(([key, count]) => {
-    const [version, platform] = key.split("-");
-    return { version, platform, count };
-  });
+  try {
+    // Initialize database if needed
+    if (!dbInitialized) {
+      await initDatabase();
+      dbInitialized = true;
+    }
 
-  const totalDownloads = Array.from(downloadStats.values()).reduce(
-    (sum, count) => sum + count,
-    0
-  );
+    // Get total downloads
+    const totalResult = await db.execute("SELECT COUNT(*) as count FROM downloads");
+    const totalDownloads = totalResult.rows[0]?.count || 0;
 
-  return NextResponse.json({
-    totalDownloads,
-    stats,
-  });
+    // Get downloads by OS
+    const byOsResult = await db.execute(`
+      SELECT os, COUNT(*) as count
+      FROM downloads
+      GROUP BY os
+      ORDER BY count DESC
+    `);
+
+    // Get downloads by source
+    const bySourceResult = await db.execute(`
+      SELECT source, COUNT(*) as count
+      FROM downloads
+      GROUP BY source
+      ORDER BY count DESC
+    `);
+
+    // Get recent downloads
+    const recentResult = await db.execute(`
+      SELECT * FROM downloads
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    return NextResponse.json({
+      totalDownloads,
+      byOs: byOsResult.rows,
+      bySource: bySourceResult.rows,
+      recent: recentResult.rows,
+    });
+  } catch (error) {
+    console.error("Error fetching download stats:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch stats" },
+      { status: 500 }
+    );
+  }
 }

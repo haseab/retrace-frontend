@@ -5,7 +5,7 @@ export const db = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// Initialize the feedback table
+// Initialize the database tables
 export async function initDatabase() {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS feedback (
@@ -27,6 +27,30 @@ export async function initDatabase() {
       recent_logs TEXT,
       has_screenshot INTEGER DEFAULT 0,
       screenshot_data BLOB,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS downloads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version TEXT,
+      source TEXT,
+      os TEXT,
+      os_version TEXT,
+      browser TEXT,
+      browser_version TEXT,
+      architecture TEXT,
+      platform TEXT,
+      language TEXT,
+      screen_resolution TEXT,
+      timezone TEXT,
+      referrer TEXT,
+      user_agent TEXT,
+      ip TEXT,
+      country TEXT,
+      city TEXT,
+      region TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);

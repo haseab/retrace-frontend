@@ -46,7 +46,7 @@ export function Footer() {
                 <span className="text-xl font-bold">Retrace</span>
               </div>
               <p className="text-sm text-muted-foreground mb-4 pr-6">
-                Your Screen History, Searchable. Private. Free. Open Source.
+                Your Screen History, Searchable. Local. Free. Open Source.
               </p>
               <div className="flex gap-2">
                 <Link

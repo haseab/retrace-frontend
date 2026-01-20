@@ -64,6 +64,10 @@ const config: Config = {
         "shimmer-slide":
           "shimmer-slide var(--speed) ease-in-out infinite alternate",
         "spin-around": "spin-around calc(var(--speed) * 2) infinite linear",
+        "dialog-overlay-show": "dialog-overlay-show 0.4s ease-out",
+        "dialog-overlay-hide": "dialog-overlay-hide 0.3s ease-in",
+        "dialog-content-show": "dialog-content-show 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "dialog-content-hide": "dialog-content-hide 0.3s ease-in",
       },
       keyframes: {
         "accordion-down": {
@@ -99,6 +103,34 @@ const config: Config = {
           },
           "100%": {
             transform: "translateZ(0) rotate(360deg)",
+          },
+        },
+        "dialog-overlay-show": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "dialog-overlay-hide": {
+          from: { opacity: "1" },
+          to: { opacity: "0" },
+        },
+        "dialog-content-show": {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(-30px) scale(0.9)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0) scale(1)",
+          },
+        },
+        "dialog-content-hide": {
+          "0%": {
+            opacity: "1",
+            transform: "translateY(0) scale(1)",
+          },
+          "100%": {
+            opacity: "0",
+            transform: "translateY(-30px) scale(0.9)",
           },
         },
       },

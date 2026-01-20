@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DownloadDialog } from "@/components/ui/download-dialog";
 import { SITE_CONFIG } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
@@ -28,6 +29,7 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [starCount, setStarCount] = useState<number | null>(null);
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -114,18 +116,17 @@ export function Navbar() {
                   )}
                 </Link>
               </Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button disabled className="cursor-not-allowed">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Available Jan 3</p>
-                </TooltipContent>
-              </Tooltip>
+              <Button onClick={() => setDownloadDialogOpen(true)}>
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
             </div>
+
+            <DownloadDialog
+              open={downloadDialogOpen}
+              onOpenChange={setDownloadDialogOpen}
+              source="navbar"
+            />
 
             <div className="flex md:hidden gap-2">
               <Button

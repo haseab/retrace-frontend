@@ -4,7 +4,7 @@ export function Hero() {
   return (
     <HeroBase
       title="Your Screen History,"
-      highlightedText="Searchable. Private. Free."
+      highlightedText="Searchable. Local. Free."
       description="Find anything you've ever seen on your screen. All data stays on your Mac. Zero cloud. Zero login. Open Source."
       mobileDescription="Find anything you've ever seen on your screen. All data stays on your Mac."
       trackingSource="hero"
