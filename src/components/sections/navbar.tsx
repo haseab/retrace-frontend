@@ -11,7 +11,7 @@ import { DownloadDialog } from "@/components/ui/download-dialog";
 import { SITE_CONFIG } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Download, Menu, X } from "lucide-react";
+import { Download, Menu, X, Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -106,16 +106,20 @@ export function Navbar() {
             </div>
 
             <div className="hidden md:flex md:items-center md:gap-4">
-              <Button variant="ghost" size="sm" asChild className="gap-2">
-                <Link href={SITE_CONFIG.links.github} target="_blank">
-                  <FaGithub className="h-5 w-5" />
-                  {starCount !== null && (
-                    <span className="flex items-center gap-1 text-sm">
-                      ⭐ {starCount.toLocaleString()}
-                    </span>
-                  )}
-                </Link>
-              </Button>
+              <Link
+                href={SITE_CONFIG.links.github}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))]/80 rounded-lg border border-[hsl(var(--border))] transition-colors"
+              >
+                <FaGithub className="h-4 w-4" />
+                <span className="text-xs font-medium">Star</span>
+                {starCount !== null && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs font-medium">
+                    <Star className="h-3 w-3 fill-yellow-400" />
+                    {starCount.toLocaleString()}
+                  </span>
+                )}
+              </Link>
               <Button onClick={() => setDownloadDialogOpen(true)}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
