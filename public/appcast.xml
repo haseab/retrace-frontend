@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Retrace Updates</title>
+        <description>App updates for Retrace</description>
+        <link>https://retrace.to</link>
+        <language>en</language>
+
+        <!-- Latest version should be first -->
+        <item>
+            <title>Version 0.1</title>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
+            <pubDate>Mon, 20 Jan 2026 01:10:00 +0000</pubDate>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.1.zip"
+                sparkle:edSignature="i2LaF5iaBS9+rtrBg3LPC3DMKqh1oPytnZ1WdzeIkuCZPlWMeiP8fRGQRDiGSm5h2iZjxYft13HGjQ/LjAJJAA=="
+                length="4363310"
+                type="application/octet-stream"/>
+        </item>
+
+    </channel>
+</rss>
