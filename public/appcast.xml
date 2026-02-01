@@ -10,6 +10,63 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.5</title>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.5</sparkle:shortVersionString>
+            <pubDate>Sat, 01 Feb 2026 22:30:00 +0000</pubDate>
+            <sparkle:releaseNotes><![CDATA[
+<h2>Retrace 0.5 (from 0.1)</h2>
+
+<h3>Highlights</h3>
+<ul>
+  <li>Major Timeline upgrade: faster scrubbing/scrolling, seamless open/close, improved readability, "show context" in filtered mode, and tighter macOS-native feel.</li>
+  <li>Much better Search: Unicode-aware full-text search (better accuracy for non‑ASCII text) and improved search UX with grouped/expanded results.</li>
+  <li>Tags + filtering: tag your history and filter the timeline by app, URL, title, and tags.</li>
+  <li>New Dashboard: redesigned analytics with charts/breakdowns (including better browser breakdowns with favicon support) and daily metrics.</li>
+</ul>
+
+<h3>New</h3>
+<ul>
+  <li>Custom database location and custom storage location support.</li>
+  <li>Recording shortcuts + improved settings experience.</li>
+  <li>Local-only "analytics" logging for internal usage/debug (no cloud dependency).</li>
+  <li>Milestone/achievement notifications and reminders for required permissions.</li>
+</ul>
+
+<h3>Performance & Reliability</h3>
+<ul>
+  <li>Faster timeline block calculations and improved timeline responsiveness.</li>
+  <li>OCR pipeline improvements: faster realtime OCR for recent frames and reduced unnecessary OCR work while scrubbing.</li>
+  <li>Video improvements: better compression, fixed B-frame mismatch issues, and updated seeking via AVAssetImageGenerator.</li>
+  <li>Reduced flicker when switching videos on the timeline.</li>
+</ul>
+
+<h3>Rewind + Browser Context</h3>
+<ul>
+  <li>Rewind importer/querying fixes (including post-tags changes) and improved reliability.</li>
+  <li>Better browser URL/title extraction (more browsers supported, plus fallbacks when URL isn't available).</li>
+</ul>
+
+<h3>Other Fixes</h3>
+<ul>
+  <li>Segment persistence improvements across Mac sleep/wake.</li>
+  <li>Keyboard shortcut fixes and better text selection/copy behavior in timeline UI.</li>
+  <li>UI polish: unified colors, improved settings, and updated highlight styling.</li>
+</ul>
+
+<h3>Notes</h3>
+<ul>
+  <li>This update includes database migrations (tags, daily metrics, Unicode search). First launch may take a bit longer while data updates.</li>
+</ul>
+]]></sparkle:releaseNotes>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.5.dmg"
+                sparkle:edSignature="fOI2gMxoI3RUZzpr2tn+ECq2Hi8lY0K7Xeyf4v3zaGT820NdwYAWsv4IkNcKkbCCYoRKY6pJfVP17z9/nPHICg=="
+                length="9398808"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.1</title>
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
