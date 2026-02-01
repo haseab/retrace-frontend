@@ -1,9 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { DownloadDialog } from "@/components/ui/download-dialog";
+import { handleDownloadClick } from "@/lib/track-download";
 import { Download } from "lucide-react";
-import { useState } from "react";
 
 interface DownloadButtonProps {
   text?: string;
@@ -20,8 +19,6 @@ export function DownloadButton({
   showIcon = true,
   source = "website",
 }: DownloadButtonProps) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-
   return (
     <>
       {/* Mobile: Show simplified message */}
@@ -42,7 +39,7 @@ export function DownloadButton({
           <Button
             size="lg"
             variant="outline"
-            onClick={() => setDialogOpen(true)}
+            onClick={() => handleDownloadClick(source)}
             className={`text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full ${className}`}
           >
             {showIcon && <Download className="mr-2 h-5 w-5" />}
@@ -54,12 +51,6 @@ export function DownloadButton({
           />
         </div>
       </div>
-
-      <DownloadDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        source={source}
-      />
     </>
   );
 }
