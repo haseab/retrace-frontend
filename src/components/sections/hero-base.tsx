@@ -129,7 +129,10 @@ export function HeroBase({
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="hidden sm:flex group relative items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs opacity-50 cursor-not-allowed">
+                    <div
+                      className="hidden sm:flex group relative items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs opacity-50 cursor-not-allowed"
+                      onPointerDown={(e) => e.preventDefault()}
+                    >
                       <code className="text-sm text-muted-foreground">
                         <span className="text-blue-400">$</span> brew install --cask
                         retrace
