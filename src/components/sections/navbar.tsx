@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DownloadDialog } from "@/components/ui/download-dialog";
+import { handleDownloadClick } from "@/lib/track-download";
 import { SITE_CONFIG } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
@@ -29,7 +29,6 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [starCount, setStarCount] = useState<number | null>(null);
-  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -120,17 +119,11 @@ export function Navbar() {
                   </span>
                 )}
               </Link>
-              <Button onClick={() => setDownloadDialogOpen(true)}>
+              <Button onClick={() => handleDownloadClick("navbar")}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
               </Button>
             </div>
-
-            <DownloadDialog
-              open={downloadDialogOpen}
-              onOpenChange={setDownloadDialogOpen}
-              source="navbar"
-            />
 
             <div className="flex md:hidden gap-2">
               <Button

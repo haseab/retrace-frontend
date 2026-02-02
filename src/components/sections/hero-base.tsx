@@ -117,7 +117,7 @@ export function HeroBase({
               className="flex flex-col items-center justify-center gap-3 pt-4"
             >
               <div className="relative w-full max-w-xs">
-                <DownloadButton text="Download Retrace v0.1" />
+                <DownloadButton text="Download Retrace v0.5" />
               </div>
 
               <div className="hidden sm:flex items-center gap-3 w-full max-w-xs">
