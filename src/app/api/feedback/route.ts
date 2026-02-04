@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
       args.push(`%${search.trim()}%`);
     }
 
-    sql += " ORDER BY created_at DESC";
+    sql += " ORDER BY updated_at DESC";
 
     const result = await db.execute({ sql, args });
 
