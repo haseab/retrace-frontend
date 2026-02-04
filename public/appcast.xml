@@ -10,6 +10,29 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.5.1</title>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
+            <pubDate>Tue, 04 Feb 2026 13:00:00 +0000</pubDate>
+            <description><![CDATA[
+<h2>Bug Fixes & Improvements</h2>
+<ul>
+  <li><strong>Memory leak fix:</strong> Fixed a memory leak issue</li>
+  <li><strong>Storage protection:</strong> Recording now automatically stops if your storage drive becomes disconnected, preventing data loss</li>
+  <li><strong>Keyboard shortcuts:</strong> Fixed an issue where shortcuts wouldn't register; you can now also clear shortcuts by pressing Delete or clicking the × button</li>
+  <li><strong>Search navigation:</strong> Pressing Escape after viewing a search result now returns you to your search results instead of closing the overlay</li>
+  <li><strong>Natural language search:</strong> Time queries like "827am" now work the same as "8:27am"</li>
+  <li><strong>UI polish:</strong> Fixed spacing in the feedback form</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.5.1.dmg"
+                sparkle:edSignature="IZqd/Vbr/5+ewDMvT6Snr/rj7+acntUl59+vlLcFx5hA+kYWDFPXMl9g4KNAzh2hmql0ALj7h+NvluiKGH/tBw=="
+                length="9412751"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.5.0</title>
             <sparkle:version>2</sparkle:version>
             <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
