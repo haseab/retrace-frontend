@@ -59,8 +59,10 @@ const config: Config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.5s ease-out",
+        "fade-in": "fade-in 0.2s ease-out",
         "slide-up": "slide-up 0.5s ease-out",
+        "zoom-in": "zoom-in 0.2s ease-out",
+        "slide-in-right": "slide-in-right 0.3s ease-out",
         "shimmer-slide":
           "shimmer-slide var(--speed) ease-in-out infinite alternate",
         "spin-around": "spin-around calc(var(--speed) * 2) infinite linear",
@@ -85,6 +87,14 @@ const config: Config = {
         "slide-up": {
           from: { transform: "translateY(20px)", opacity: "0" },
           to: { transform: "translateY(0)", opacity: "1" },
+        },
+        "zoom-in": {
+          from: { transform: "scale(0.95)", opacity: "0" },
+          to: { transform: "scale(1)", opacity: "1" },
+        },
+        "slide-in-right": {
+          from: { transform: "translateX(20px)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
         },
         "shimmer-slide": {
           to: {

@@ -65,15 +65,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert into Turso database
+    // Insert into Turso database with new fields (status, priority, notes default values)
     const result = await db.execute({
       sql: `
         INSERT INTO feedback (
-          type, email, description, app_version, build_number, macos_version,
+          type, email, description, status, priority, notes,
+          app_version, build_number, macos_version,
           device_model, total_disk_space, free_disk_space, session_count,
           frame_count, segment_count, database_size_mb, recent_errors,
           recent_logs, has_screenshot, screenshot_data
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, 'open', 'medium', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         body.type,
@@ -127,18 +128,37 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
+    const status = searchParams.get("status");
+    const priority = searchParams.get("priority");
+    const search = searchParams.get("search");
 
-    let result;
-    if (type) {
-      result = await db.execute({
-        sql: "SELECT * FROM feedback WHERE type = ? ORDER BY created_at DESC",
-        args: [type],
-      });
-    } else {
-      result = await db.execute(
-        "SELECT * FROM feedback ORDER BY created_at DESC"
-      );
+    // Build query dynamically
+    let sql = "SELECT * FROM feedback WHERE 1=1";
+    const args: (string | number)[] = [];
+
+    if (type && type !== "all") {
+      sql += " AND type = ?";
+      args.push(type);
     }
+
+    if (status && status !== "all") {
+      sql += " AND status = ?";
+      args.push(status);
+    }
+
+    if (priority && priority !== "all") {
+      sql += " AND priority = ?";
+      args.push(priority);
+    }
+
+    if (search && search.trim()) {
+      sql += " AND description LIKE ?";
+      args.push(`%${search.trim()}%`);
+    }
+
+    sql += " ORDER BY created_at DESC";
+
+    const result = await db.execute({ sql, args });
 
     return NextResponse.json({
       count: result.rows.length,
@@ -147,6 +167,10 @@ export async function GET(request: NextRequest) {
         type: row.type,
         email: row.email,
         description: row.description,
+        status: row.status || "open",
+        priority: row.priority || "medium",
+        notes: row.notes || "",
+        tags: JSON.parse((row.tags as string) || "[]"),
         appVersion: row.app_version,
         buildNumber: row.build_number,
         macOSVersion: row.macos_version,
@@ -163,6 +187,7 @@ export async function GET(request: NextRequest) {
         recentLogs: JSON.parse((row.recent_logs as string) || "[]"),
         hasScreenshot: row.has_screenshot === 1,
         createdAt: row.created_at,
+        updatedAt: row.updated_at || row.created_at,
       })),
     });
   } catch (error) {

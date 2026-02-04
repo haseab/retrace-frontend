@@ -114,11 +114,25 @@ export async function GET() {
       ORDER BY count DESC
     `);
 
-    // Get recent downloads
+    // Get recent downloads (last 10 for display)
     const recentResult = await db.execute(`
       SELECT * FROM downloads
       ORDER BY created_at DESC
       LIMIT 10
+    `);
+
+    // Get downloads from last 48 hours for hourly chart
+    const hourlyResult = await db.execute(`
+      SELECT created_at FROM downloads
+      WHERE created_at >= datetime('now', '-48 hours')
+      ORDER BY created_at DESC
+    `);
+
+    // Get downloads from last 30 days for daily chart
+    const dailyResult = await db.execute(`
+      SELECT created_at FROM downloads
+      WHERE created_at >= datetime('now', '-30 days')
+      ORDER BY created_at DESC
     `);
 
     return NextResponse.json({
@@ -126,6 +140,8 @@ export async function GET() {
       byOs: byOsResult.rows,
       bySource: bySourceResult.rows,
       recent: recentResult.rows,
+      hourlyDownloads: hourlyResult.rows,
+      dailyDownloads: dailyResult.rows,
     });
   } catch (error) {
     console.error("Error fetching download stats:", error);

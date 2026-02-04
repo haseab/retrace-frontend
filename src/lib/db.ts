@@ -5,6 +5,41 @@ export const db = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
+// Helper to safely add a column if it doesn't exist
+async function addColumnIfNotExists(table: string, column: string, definition: string) {
+  try {
+    // Try to add the column directly - if it already exists, it will fail gracefully
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`Added column ${column} to ${table}`);
+  } catch (error) {
+    // Column likely already exists - this is expected
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("duplicate column") || errorMessage.includes("already exists")) {
+      // Column exists, this is fine
+    } else {
+      console.log(`Migration note for ${table}.${column}:`, errorMessage);
+    }
+  }
+}
+
+// Run migrations for existing tables
+async function runMigrations() {
+  // Add new columns to feedback table if they don't exist
+  // Note: SQLite doesn't allow non-constant defaults when adding columns
+  await addColumnIfNotExists("feedback", "status", "TEXT DEFAULT 'open'");
+  await addColumnIfNotExists("feedback", "priority", "TEXT DEFAULT 'medium'");
+  await addColumnIfNotExists("feedback", "notes", "TEXT DEFAULT ''");
+  await addColumnIfNotExists("feedback", "updated_at", "TEXT"); // No default - will be NULL initially
+  await addColumnIfNotExists("feedback", "tags", "TEXT DEFAULT '[]'");
+
+  // Backfill NULL updated_at with created_at
+  try {
+    await db.execute(`UPDATE feedback SET updated_at = created_at WHERE updated_at IS NULL`);
+  } catch {
+    // Ignore errors here
+  }
+}
+
 // Initialize the database tables
 export async function initDatabase() {
   await db.execute(`
@@ -13,6 +48,10 @@ export async function initDatabase() {
       type TEXT NOT NULL,
       email TEXT,
       description TEXT NOT NULL,
+      status TEXT DEFAULT 'open',
+      priority TEXT DEFAULT 'medium',
+      notes TEXT DEFAULT '',
+      tags TEXT DEFAULT '[]',
       app_version TEXT,
       build_number TEXT,
       macos_version TEXT,
@@ -27,9 +66,32 @@ export async function initDatabase() {
       recent_logs TEXT,
       has_screenshot INTEGER DEFAULT 0,
       screenshot_data BLOB,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // Run migrations for existing tables (add columns if they don't exist)
+  await runMigrations();
+
+  // Add indexes for performance (only after migrations ensure columns exist)
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback(priority)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at DESC)`);
+
+  // Create feedback_notes table for comments
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS feedback_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      feedback_id INTEGER NOT NULL,
+      author TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (feedback_id) REFERENCES feedback(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_notes_feedback_id ON feedback_notes(feedback_id)`);
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS downloads (

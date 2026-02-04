@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AuthGuard } from "@/components/admin/auth-guard";
+import { Sidebar } from "@/components/admin/sidebar";
 
 export const metadata: Metadata = {
   title: "Admin - Retrace Feedback",
@@ -10,7 +12,14 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // This will be nested inside the root layout, but the page will
-  // visually override the navbar/footer with its own full-screen styling
-  return <>{children}</>;
+  return (
+    <AuthGuard>
+      <div className="flex min-h-screen bg-[hsl(var(--background))]">
+        <Sidebar />
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
+    </AuthGuard>
+  );
 }
