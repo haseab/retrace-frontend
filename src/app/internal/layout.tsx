@@ -3,7 +3,7 @@ import { AuthGuard } from "@/components/admin/auth-guard";
 import { Sidebar } from "@/components/admin/sidebar";
 
 export const metadata: Metadata = {
-  title: "Admin - Retrace Feedback",
+  title: "Dashboard",
   robots: "noindex, nofollow",
 };
 

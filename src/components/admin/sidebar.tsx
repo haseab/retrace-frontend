@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "./auth-guard";
 
 const navItems = [
-  { href: "/admin/feedback", label: "Feedback", icon: MessageSquareIcon },
-  { href: "/admin/analytics", label: "Analytics", icon: BarChartIcon },
+  { href: "/internal/feedback", label: "Feedback", icon: MessageSquareIcon },
+  { href: "/internal/analytics", label: "Analytics", icon: BarChartIcon },
 ];
 
 interface SidebarProps {
@@ -45,11 +45,11 @@ export function Sidebar({ collapsed: controlledCollapsed, onCollapsedChange }: S
       }`}
     >
       <div className={`p-4 border-b border-[hsl(var(--border))] flex items-center ${collapsed ? "justify-center" : "justify-between"}`}>
-        <Link href="/admin" className="flex items-center gap-2">
+        <Link href="/internal" className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-[hsl(var(--primary))] flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">R</span>
           </div>
-          {!collapsed && <span className="font-semibold text-lg">Retrace Admin</span>}
+          {!collapsed && <span className="font-semibold text-lg">Retrace</span>}
         </Link>
         {!collapsed && (
           <button
