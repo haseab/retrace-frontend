@@ -47,16 +47,16 @@ export function RecentDownloads({ downloads }: RecentDownloadsProps) {
               }`}
               style={{ animationDelay: `${index * 30}ms` }}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg transition-all duration-200 ${
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`p-2 rounded-lg transition-all duration-200 shrink-0 ${
                     selectedDownload?.id === item.id
                       ? "bg-[hsl(var(--primary))]/30"
                       : "bg-[hsl(var(--card))]"
                   }`}>
                     <GlobeIcon className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium">
                       {item.os || "Unknown OS"} • {item.browser || "Unknown Browser"}
                     </span>
@@ -65,7 +65,22 @@ export function RecentDownloads({ downloads }: RecentDownloadsProps) {
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
+                {/* Extra details visible on wider cards */}
+                <div className="hidden xl:flex items-center gap-4 text-xs text-[hsl(var(--muted-foreground))] shrink-0">
+                  {item.screen_resolution && (
+                    <span className="flex items-center gap-1">
+                      <MonitorIcon className="w-3 h-3" />
+                      {item.screen_resolution}
+                    </span>
+                  )}
+                  {item.language && (
+                    <span className="uppercase">{item.language}</span>
+                  )}
+                  {item.ip && item.ip !== "unknown" && (
+                    <span className="font-mono text-[10px]">{item.ip}</span>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
                   <span className="text-xs px-2 py-1 bg-[hsl(var(--card))] rounded border border-[hsl(var(--border))]">
                     {item.source || "direct"}
                   </span>
@@ -201,6 +216,16 @@ function CursorIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
       <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
       <path d="M13 13l6 6" />
+    </svg>
+  );
+}
+
+function MonitorIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   );
 }
