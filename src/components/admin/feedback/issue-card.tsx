@@ -63,8 +63,14 @@ export function IssueCard({ issue, isSelected, onClick, compact = false }: Issue
           </div>
         )}
         <div className="flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]">
-          <span>#{issue.id}</span>
-          <span>{formatDate(issue.createdAt)}</span>
+          {issue.email ? (
+            <span className="truncate min-w-0" title={issue.email}>
+              {issue.email}
+            </span>
+          ) : (
+            <span className="text-[hsl(var(--muted-foreground))]/50">No email</span>
+          )}
+          <span className="shrink-0 ml-2">{formatDate(issue.createdAt)}</span>
         </div>
       </div>
     );
