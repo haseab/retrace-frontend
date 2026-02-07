@@ -276,12 +276,23 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
               <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
                 Contact Email
               </h3>
-              <a
-                href={`mailto:${issue.email}`}
-                className="text-sm text-[hsl(var(--primary))] hover:underline"
-              >
-                {issue.email}
-              </a>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`mailto:${issue.email}`}
+                  className="text-sm text-[hsl(var(--primary))] hover:underline"
+                >
+                  {issue.email}
+                </a>
+                <a
+                  href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(issue.email)}&su=${encodeURIComponent(`Re: Your ${issue.type} for Retrace`)}&body=${encodeURIComponent(`Hi,\n\nThanks for reaching out about Retrace.\n\n\n---\nOriginal message:\n${issue.description}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-xs hover:bg-[hsl(var(--secondary))]/80 transition-all duration-200 hover:scale-105 active:scale-95"
+                >
+                  <GmailIcon className="w-3.5 h-3.5" />
+                  Reply via Gmail
+                </a>
+              </div>
             </div>
           )}
 
@@ -827,6 +838,14 @@ function CodeIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
       <polyline points="16 18 22 12 16 6" />
       <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function GmailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" />
     </svg>
   );
 }
