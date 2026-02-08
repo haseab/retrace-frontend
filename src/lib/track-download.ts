@@ -1,4 +1,4 @@
-const DOWNLOAD_URL = "https://cdn.retrace.to/Retrace-v0.5.1.dmg";
+const DOWNLOAD_URL = "https://cdn.retrace.to/Retrace-v0.6.0.dmg";
 
 export function trackDownload(source: string) {
   // Collect browser/system info
@@ -59,7 +59,7 @@ export function trackDownload(source: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      version: "0.5.1",
+      version: "0.6.0",
       source,
       timestamp: new Date().toISOString(),
       os,

@@ -10,6 +10,66 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.6.0</title>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <pubDate>Sun, 08 Feb 2026 18:34:12 +0000</pubDate>
+            <description><![CDATA[
+<h2>What's New in v0.6.0</h2>
+
+<h3>Live View & Timeline</h3>
+<ul>
+  <li>Instant OCR on live view — hover and copy any text on your screen in real time</li>
+  <li>True smooth scrolling on the timeline, no more frame-by-frame jumps</li>
+  <li>Mouse drag scrubbing — click and drag to scrub through your history</li>
+  <li>Shift+drag support on live view</li>
+  <li>Video playback controls with play/pause</li>
+  <li>Fixed multi-display scaling issues</li>
+  <li>Escape and search result clicks now clear active filters automatically</li>
+</ul>
+
+<h3>Search</h3>
+<ul>
+  <li>Advanced metadata filters — filter by window title and browser now</li>
+  <li>Cmd+K spotlight search in Settings</li>
+  <li>Cleaned up and streamlined the entire search UI</li>
+  <li>Fixed remaining search result highlighting problems</li>
+</ul>
+
+<h3>Performance</h3>
+<ul>
+  <li>3-5x reduction in energy usage with tile-based OCR change detection and caching</li>
+  <li>Power-aware OCR — throttles on battery, ramps up when plugged in (configurable in settings)</li>
+  <li>Fixed UI freezes from background task pile-up</li>
+  <li>Storage health monitoring</li>
+  <li>New OCR system monitor dashboard for real-time processing stats</li>
+</ul>
+
+<h3>Keyboard Shortcuts</h3>
+<ul>
+  <li>Fixed complex multi-modifier shortcuts not registering</li>
+  <li>Consistent shortcut behavior across the app</li>
+  <li>Added more shortcuts for common actions</li>
+</ul>
+
+<h3>Quality of Life</h3>
+<ul>
+  <li>Permission monitoring for screen recording and accessibility</li>
+  <li>Playhead undo functionality (Press cmd z to go back to timestamp)</li>
+  <li>Configurable pause recording reminder</li>
+  <li>App exclusion list in privacy settings</li>
+  <li>Fixed app relaunch ghost instance issue</li>
+  <li>Polished drag interactions and share menu reliability</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.6.0.dmg"
+                sparkle:edSignature="qdlOPt/PUlX9/kEMHTfi9pJwL1nBmx/6OvUBP0yH75J83ThN1xYgYQhbstyYpFtZ9/V9FVi6wi0ajmAHRhU2Dg=="
+                length="8208806"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.5.1</title>
             <sparkle:version>4</sparkle:version>
             <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
