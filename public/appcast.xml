@@ -10,6 +10,46 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.7.0</title>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.7.0</sparkle:shortVersionString>
+            <pubDate>Tue, 11 Feb 2026 18:00:00 +0000</pubDate>
+            <description><![CDATA[
+<h2>What's New in v0.7.0</h2>
+
+<h3>What's New</h3>
+<ul>
+  <li><strong>Smart Processing Levels</strong> — Replaced the manual OCR FPS slider with an intuitive Processing Level system (Low / Medium / High) for simpler performance tuning</li>
+  <li><strong>Natural Language Jump-To</strong> — The "Jump to" dialog now understands natural language dates like "yesterday morning" or "last Tuesday"</li>
+  <li><strong>Unified Search Routing</strong> — Deep links and search queries now route seamlessly through a single, consistent path</li>
+</ul>
+
+<h3>Improvements</h3>
+<ul>
+  <li><strong>Faster Timeline</strong> — Major main-thread performance improvements for smoother scrolling, rendering, and navigation</li>
+  <li><strong>Revamped Filters</strong> — Redesigned date and filter popovers with inclusive date filtering so results include your full selected range</li>
+  <li><strong>Dashboard Polish</strong> — Cleaner dashboard layout with improved storage usage visuals and removed distracting persistent alerts</li>
+  <li><strong>Redesigned Monitor Tooltips</strong> — System monitor indicators now show richer, better-formatted status information</li>
+  <li><strong>Better Feedback Diagnostics</strong> — Feedback submissions now include detailed system diagnostics to help us resolve issues faster</li>
+  <li><strong>High-Resolution Display Support</strong> — Improved downscaling for Retina and high-DPI monitors to reduce resource usage</li>
+</ul>
+
+<h3>Fixes</h3>
+<ul>
+  <li>Fixed timeline flickering caused by double-rerender cycles</li>
+  <li>Fixed deep link navigation not jumping to the correct timestamp</li>
+  <li>Fixed refresh introducing large time gaps in the timeline</li>
+  <li>Fixed thread safety issues in timeline data access</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.7.0.dmg"
+                sparkle:edSignature="fjM3aORaDpPk/d1fL3Xz40b/pDF0BrHhEJF9rR5Mt+Jc2yeK4N0Q8B+TkqkpDzjMnKi87HLeX9te1hUo2HU3Bg=="
+                length="8680648"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.6.0</title>
             <sparkle:version>5</sparkle:version>
             <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
