@@ -8,12 +8,11 @@ import { SortableIssueCard } from "./sortable-issue-card";
 interface KanbanColumnProps {
   status: FeedbackStatus;
   issues: FeedbackItem[];
-  readIssueIds: Set<number>;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
 }
 
-export function KanbanColumn({ status, issues, readIssueIds, selectedId, onSelect }: KanbanColumnProps) {
+export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
     data: {
@@ -24,7 +23,7 @@ export function KanbanColumn({ status, issues, readIssueIds, selectedId, onSelec
 
   const statusConfig = STATUS_CONFIG[status];
   const issueIds = issues.map((issue) => issue.id.toString());
-  const unreadCount = issues.reduce((count, issue) => count + (readIssueIds.has(issue.id) ? 0 : 1), 0);
+  const unreadCount = issues.reduce((count, issue) => count + (issue.isRead ? 0 : 1), 0);
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[320px] flex-1 max-h-[calc(100vh-220px)] animate-fade-in">
@@ -63,7 +62,7 @@ export function KanbanColumn({ status, issues, readIssueIds, selectedId, onSelec
               >
                 <SortableIssueCard
                   issue={issue}
-                  isUnread={!readIssueIds.has(issue.id)}
+                  isUnread={!issue.isRead}
                   isSelected={selectedId === issue.id}
                   onClick={() => onSelect(issue)}
                 />

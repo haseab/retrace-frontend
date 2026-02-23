@@ -11,7 +11,6 @@ export default function FeedbackPage() {
   const [issues, setIssues] = useState<FeedbackItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIssue, setSelectedIssue] = useState<FeedbackItem | null>(null);
-  const [readIssueIds, setReadIssueIds] = useState<Set<number>>(new Set());
   const [isDetailClosing, setIsDetailClosing] = useState(false);
   const [view, setView] = useState<ViewMode>("kanban");
   const [filters, setFilters] = useState<FeedbackFilters>({
@@ -165,22 +164,46 @@ export default function FeedbackPage() {
     }
   };
 
-  const markIssueAsRead = useCallback((id: number) => {
-    setReadIssueIds((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  }, []);
+  const markIssueAsRead = useCallback(async (id: number) => {
+    const previousIssues = [...issues];
+    const previousSelected = selectedIssue;
+
+    setIssues((prev) =>
+      prev.map((issue) =>
+        issue.id === id ? { ...issue, isRead: true } : issue
+      )
+    );
+
+    if (selectedIssue?.id === id) {
+      setSelectedIssue((prev) => prev ? { ...prev, isRead: true } : null);
+    }
+
+    try {
+      const res = await fetch(`/api/feedback/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isRead: true }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to mark issue as read");
+      }
+    } catch (error) {
+      console.error("Failed to mark issue as read:", error);
+      setIssues(previousIssues);
+      setSelectedIssue(previousSelected);
+    }
+  }, [issues, selectedIssue]);
 
   const handleSelectIssue = (issue: FeedbackItem) => {
     // If clicking the same card, dismiss the panel
     if (selectedIssue?.id === issue.id) {
       handleCloseDetail();
     } else {
-      markIssueAsRead(issue.id);
-      setSelectedIssue(issue);
+      if (!issue.isRead) {
+        void markIssueAsRead(issue.id);
+      }
+      setSelectedIssue(issue.isRead ? issue : { ...issue, isRead: true });
     }
   };
 
@@ -192,7 +215,7 @@ export default function FeedbackPage() {
     return true;
   });
   const unreadCount = filteredIssues.reduce(
-    (count, issue) => count + (readIssueIds.has(issue.id) ? 0 : 1),
+    (count, issue) => count + (issue.isRead ? 0 : 1),
     0
   );
 
@@ -236,7 +259,6 @@ export default function FeedbackPage() {
             {view === "kanban" ? (
               <KanbanBoard
                 issues={filteredIssues}
-                readIssueIds={readIssueIds}
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}

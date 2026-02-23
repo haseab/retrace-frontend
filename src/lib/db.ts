@@ -31,10 +31,17 @@ async function runMigrations() {
   await addColumnIfNotExists("feedback", "notes", "TEXT DEFAULT ''");
   await addColumnIfNotExists("feedback", "updated_at", "TEXT"); // No default - will be NULL initially
   await addColumnIfNotExists("feedback", "tags", "TEXT DEFAULT '[]'");
+  await addColumnIfNotExists("feedback", "is_read", "INTEGER DEFAULT 0");
 
   // Backfill NULL updated_at with created_at
   try {
     await db.execute(`UPDATE feedback SET updated_at = created_at WHERE updated_at IS NULL`);
+  } catch {
+    // Ignore errors here
+  }
+
+  try {
+    await db.execute(`UPDATE feedback SET is_read = 0 WHERE is_read IS NULL`);
   } catch {
     // Ignore errors here
   }
@@ -52,6 +59,7 @@ export async function initDatabase() {
       priority TEXT DEFAULT 'medium',
       notes TEXT DEFAULT '',
       tags TEXT DEFAULT '[]',
+      is_read INTEGER DEFAULT 0,
       app_version TEXT,
       build_number TEXT,
       macos_version TEXT,
@@ -77,6 +85,7 @@ export async function initDatabase() {
   // Add indexes for performance (only after migrations ensure columns exist)
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback(priority)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_is_read ON feedback(is_read)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at DESC)`);
 
   // Create feedback_notes table for comments

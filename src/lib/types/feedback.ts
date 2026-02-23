@@ -24,6 +24,7 @@ export interface FeedbackItem {
   type: FeedbackType;
   email: string | null;
   description: string;
+  isRead: boolean;
   status: FeedbackStatus;
   priority: FeedbackPriority;
   notes: string; // Deprecated - kept for backwards compatibility

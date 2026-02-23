@@ -15,11 +15,12 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, priority, notes, tags } = body;
+    const { status, priority, notes, tags, isRead } = body;
 
     // Build update query dynamically based on provided fields
     const updates: string[] = [];
     const args: (string | number)[] = [];
+    let shouldUpdateTimestamp = false;
 
     if (status !== undefined) {
       const validStatuses = ["open", "in_progress", "resolved", "closed"];
@@ -31,6 +32,7 @@ export async function PATCH(
       }
       updates.push("status = ?");
       args.push(status);
+      shouldUpdateTimestamp = true;
     }
 
     if (priority !== undefined) {
@@ -43,11 +45,13 @@ export async function PATCH(
       }
       updates.push("priority = ?");
       args.push(priority);
+      shouldUpdateTimestamp = true;
     }
 
     if (notes !== undefined) {
       updates.push("notes = ?");
       args.push(notes);
+      shouldUpdateTimestamp = true;
     }
 
     if (tags !== undefined) {
@@ -59,6 +63,18 @@ export async function PATCH(
       }
       updates.push("tags = ?");
       args.push(JSON.stringify(tags));
+      shouldUpdateTimestamp = true;
+    }
+
+    if (isRead !== undefined) {
+      if (typeof isRead !== "boolean") {
+        return NextResponse.json(
+          { error: "isRead must be a boolean" },
+          { status: 400 }
+        );
+      }
+      updates.push("is_read = ?");
+      args.push(isRead ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -68,8 +84,11 @@ export async function PATCH(
       );
     }
 
-    // Always update the updated_at timestamp
-    updates.push("updated_at = datetime('now')");
+    // Only update the timestamp for content/status/priority/tag changes.
+    // Read acknowledgements should not reshuffle issue ordering.
+    if (shouldUpdateTimestamp) {
+      updates.push("updated_at = datetime('now')");
+    }
     args.push(id);
 
     const sql = `UPDATE feedback SET ${updates.join(", ")} WHERE id = ?`;
@@ -96,6 +115,7 @@ export async function PATCH(
         type: row.type,
         email: row.email,
         description: row.description,
+        isRead: row.is_read === 1,
         status: row.status || "open",
         priority: row.priority || "medium",
         notes: row.notes || "",

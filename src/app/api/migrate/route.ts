@@ -25,6 +25,9 @@ export async function GET() {
   // Add updated_at column (NULL default, we'll update it separately)
   results.push(await addColumn("updated_at", "TEXT"));
 
+  // Add read state column for internal feedback triage
+  results.push(await addColumn("is_read", "INTEGER DEFAULT 0"));
+
   // Update any NULL updated_at values to created_at
   try {
     await db.execute(`UPDATE feedback SET updated_at = created_at WHERE updated_at IS NULL`);
@@ -32,6 +35,14 @@ export async function GET() {
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     results.push(`Failed to update updated_at: ${msg}`);
+  }
+
+  try {
+    await db.execute(`UPDATE feedback SET is_read = 0 WHERE is_read IS NULL`);
+    results.push("Updated NULL is_read values");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    results.push(`Failed to update is_read: ${msg}`);
   }
 
   return NextResponse.json({ success: true, results });

@@ -69,12 +69,12 @@ export async function POST(request: NextRequest) {
     const result = await db.execute({
       sql: `
         INSERT INTO feedback (
-          type, email, description, status, priority, notes,
+          type, email, description, status, priority, notes, is_read,
           app_version, build_number, macos_version,
           device_model, total_disk_space, free_disk_space, session_count,
           frame_count, segment_count, database_size_mb, recent_errors,
           recent_logs, has_screenshot, screenshot_data
-        ) VALUES (?, ?, ?, 'open', 'medium', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, 'open', 'medium', '', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         body.type,
@@ -167,6 +167,7 @@ export async function GET(request: NextRequest) {
         type: row.type,
         email: row.email,
         description: row.description,
+        isRead: row.is_read === 1,
         status: row.status || "open",
         priority: row.priority || "medium",
         notes: row.notes || "",

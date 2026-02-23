@@ -21,7 +21,6 @@ const STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "closed"]
 
 interface KanbanBoardProps {
   issues: FeedbackItem[];
-  readIssueIds: Set<number>;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
@@ -32,7 +31,7 @@ function getCreatedTimestamp(createdAt: string): number {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-export function KanbanBoard({ issues, readIssueIds, selectedId, onSelect, onUpdateStatus }: KanbanBoardProps) {
+export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: KanbanBoardProps) {
   const [activeIssue, setActiveIssue] = useState<FeedbackItem | null>(null);
 
   const sensors = useSensors(
@@ -111,7 +110,6 @@ export function KanbanBoard({ issues, readIssueIds, selectedId, onSelect, onUpda
             <KanbanColumn
               status={status}
               issues={issuesByStatus[status]}
-              readIssueIds={readIssueIds}
               selectedId={selectedId}
               onSelect={onSelect}
             />
@@ -127,7 +125,7 @@ export function KanbanBoard({ issues, readIssueIds, selectedId, onSelect, onUpda
           <div className="rotate-2 scale-105 shadow-2xl shadow-black/40 animate-pop">
             <IssueCard
               issue={activeIssue}
-              isUnread={!readIssueIds.has(activeIssue.id)}
+              isUnread={!activeIssue.isRead}
               compact
             />
           </div>
