@@ -7,11 +7,12 @@ import { IssueCard } from "./issue-card";
 
 interface SortableIssueCardProps {
   issue: FeedbackItem;
+  isUnread: boolean;
   isSelected: boolean;
   onClick: () => void;
 }
 
-export function SortableIssueCard({ issue, isSelected, onClick }: SortableIssueCardProps) {
+export function SortableIssueCard({ issue, isUnread, isSelected, onClick }: SortableIssueCardProps) {
   const {
     attributes,
     listeners,
@@ -46,6 +47,7 @@ export function SortableIssueCard({ issue, isSelected, onClick }: SortableIssueC
     >
       <IssueCard
         issue={issue}
+        isUnread={isUnread}
         isSelected={isSelected}
         onClick={onClick}
         compact

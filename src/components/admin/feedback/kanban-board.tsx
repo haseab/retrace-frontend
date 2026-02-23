@@ -21,12 +21,18 @@ const STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "closed"]
 
 interface KanbanBoardProps {
   issues: FeedbackItem[];
+  readIssueIds: Set<number>;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
 }
 
-export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: KanbanBoardProps) {
+function getCreatedTimestamp(createdAt: string): number {
+  const timestamp = new Date(createdAt).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+export function KanbanBoard({ issues, readIssueIds, selectedId, onSelect, onUpdateStatus }: KanbanBoardProps) {
   const [activeIssue, setActiveIssue] = useState<FeedbackItem | null>(null);
 
   const sensors = useSensors(
@@ -41,7 +47,9 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
   );
 
   const issuesByStatus = STATUSES.reduce((acc, status) => {
-    acc[status] = issues.filter((issue) => issue.status === status);
+    acc[status] = issues
+      .filter((issue) => issue.status === status)
+      .sort((a, b) => getCreatedTimestamp(b.createdAt) - getCreatedTimestamp(a.createdAt));
     return acc;
   }, {} as Record<FeedbackStatus, FeedbackItem[]>);
 
@@ -103,6 +111,7 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
             <KanbanColumn
               status={status}
               issues={issuesByStatus[status]}
+              readIssueIds={readIssueIds}
               selectedId={selectedId}
               onSelect={onSelect}
             />
@@ -116,7 +125,11 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
       }}>
         {activeIssue && (
           <div className="rotate-2 scale-105 shadow-2xl shadow-black/40 animate-pop">
-            <IssueCard issue={activeIssue} compact />
+            <IssueCard
+              issue={activeIssue}
+              isUnread={!readIssueIds.has(activeIssue.id)}
+              compact
+            />
           </div>
         )}
       </DragOverlay>

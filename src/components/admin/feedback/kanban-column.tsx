@@ -8,11 +8,12 @@ import { SortableIssueCard } from "./sortable-issue-card";
 interface KanbanColumnProps {
   status: FeedbackStatus;
   issues: FeedbackItem[];
+  readIssueIds: Set<number>;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
 }
 
-export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanColumnProps) {
+export function KanbanColumn({ status, issues, readIssueIds, selectedId, onSelect }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
     data: {
@@ -23,6 +24,7 @@ export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanCol
 
   const statusConfig = STATUS_CONFIG[status];
   const issueIds = issues.map((issue) => issue.id.toString());
+  const unreadCount = issues.reduce((count, issue) => count + (readIssueIds.has(issue.id) ? 0 : 1), 0);
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[320px] flex-1 max-h-[calc(100vh-220px)] animate-fade-in">
@@ -34,6 +36,11 @@ export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanCol
           <span className="text-xs text-[hsl(var(--muted-foreground))] bg-[hsl(var(--secondary))] px-2 py-0.5 rounded-full transition-all duration-300">
             {issues.length}
           </span>
+          {unreadCount > 0 && (
+            <span className="text-xs text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full transition-all duration-300">
+              {unreadCount} unread
+            </span>
+          )}
         </div>
       </div>
 
@@ -56,6 +63,7 @@ export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanCol
               >
                 <SortableIssueCard
                   issue={issue}
+                  isUnread={!readIssueIds.has(issue.id)}
                   isSelected={selectedId === issue.id}
                   onClick={() => onSelect(issue)}
                 />

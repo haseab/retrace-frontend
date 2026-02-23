@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FeedbackItem, FeedbackFilters, FeedbackStatus, FeedbackPriority, ViewMode, FeedbackResponse } from "@/lib/types/feedback";
 import { FiltersBar } from "@/components/admin/feedback/filters-bar";
 import { KanbanBoard } from "@/components/admin/feedback/kanban-board";
@@ -11,6 +11,7 @@ export default function FeedbackPage() {
   const [issues, setIssues] = useState<FeedbackItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIssue, setSelectedIssue] = useState<FeedbackItem | null>(null);
+  const [readIssueIds, setReadIssueIds] = useState<Set<number>>(new Set());
   const [isDetailClosing, setIsDetailClosing] = useState(false);
   const [view, setView] = useState<ViewMode>("kanban");
   const [filters, setFilters] = useState<FeedbackFilters>({
@@ -164,11 +165,21 @@ export default function FeedbackPage() {
     }
   };
 
+  const markIssueAsRead = useCallback((id: number) => {
+    setReadIssueIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
   const handleSelectIssue = (issue: FeedbackItem) => {
     // If clicking the same card, dismiss the panel
     if (selectedIssue?.id === issue.id) {
       handleCloseDetail();
     } else {
+      markIssueAsRead(issue.id);
       setSelectedIssue(issue);
     }
   };
@@ -180,15 +191,24 @@ export default function FeedbackPage() {
     }
     return true;
   });
+  const unreadCount = filteredIssues.reduce(
+    (count, issue) => count + (readIssueIds.has(issue.id) ? 0 : 1),
+    0
+  );
 
   return (
     <div className="p-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-3">
-          <MessageSquareIcon className="w-7 h-7 text-[hsl(var(--primary))]" />
-          Feedback & Issues
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <MessageSquareIcon className="w-7 h-7 text-[hsl(var(--primary))]" />
+            Feedback & Issues
+          </h1>
+          <span className="px-2.5 py-1 text-xs font-semibold rounded-full border border-sky-400/40 bg-sky-500/10 text-sky-300">
+            {unreadCount} unread
+          </span>
+        </div>
         <p className="text-[hsl(var(--muted-foreground))] mt-1 ml-10">
           Track and manage bug reports, feature requests, and questions
         </p>
@@ -216,6 +236,7 @@ export default function FeedbackPage() {
             {view === "kanban" ? (
               <KanbanBoard
                 issues={filteredIssues}
+                readIssueIds={readIssueIds}
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}

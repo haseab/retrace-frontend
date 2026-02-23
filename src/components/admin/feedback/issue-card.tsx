@@ -4,12 +4,13 @@ import { FeedbackItem, STATUS_CONFIG, PRIORITY_CONFIG, TYPE_CONFIG, getTagColor 
 
 interface IssueCardProps {
   issue: FeedbackItem;
+  isUnread?: boolean;
   isSelected?: boolean;
   onClick?: () => void;
   compact?: boolean;
 }
 
-export function IssueCard({ issue, isSelected, onClick, compact = false }: IssueCardProps) {
+export function IssueCard({ issue, isUnread = false, isSelected, onClick, compact = false }: IssueCardProps) {
   const typeConfig = TYPE_CONFIG[issue.type] || { label: issue.type, color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
   const statusConfig = STATUS_CONFIG[issue.status] || STATUS_CONFIG.open;
   const priorityConfig = PRIORITY_CONFIG[issue.priority] || PRIORITY_CONFIG.medium;
@@ -30,10 +31,17 @@ export function IssueCard({ issue, isSelected, onClick, compact = false }: Issue
         className={`p-3 bg-[hsl(var(--card))] rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
           isSelected
             ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"
-            : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
+            : isUnread
+              ? "border-sky-400/60 ring-1 ring-sky-400/40 shadow-[0_0_0_1px_rgba(56,189,248,0.3),0_0_16px_rgba(56,189,248,0.15)] hover:border-sky-300/70"
+              : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
         }`}
       >
         <div className="flex items-center gap-2 mb-2">
+          {isUnread && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded border border-sky-400/40 bg-sky-500/10 text-sky-200">
+              Unread
+            </span>
+          )}
           <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded border ${typeConfig.color}`}>
             {issue.type === "Bug Report" ? "Bug" : issue.type === "Feature Request" ? "Feature" : "Q"}
           </span>
@@ -82,12 +90,19 @@ export function IssueCard({ issue, isSelected, onClick, compact = false }: Issue
       className={`p-4 bg-[hsl(var(--card))] rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
         isSelected
           ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"
-          : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
+          : isUnread
+            ? "border-sky-400/60 ring-1 ring-sky-400/40 shadow-[0_0_0_1px_rgba(56,189,248,0.3),0_0_16px_rgba(56,189,248,0.15)] hover:border-sky-300/70"
+            : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {isUnread && (
+              <span className="px-2 py-0.5 text-xs font-semibold uppercase tracking-wide rounded border border-sky-400/40 bg-sky-500/10 text-sky-200">
+                Unread
+              </span>
+            )}
             <span className={`px-2 py-0.5 text-xs font-medium rounded border ${typeConfig.color}`}>
               {typeConfig.label}
             </span>
