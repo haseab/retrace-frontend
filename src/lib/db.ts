@@ -11,6 +11,7 @@ export const db = createClient({
 });
 
 const NORMALIZED_DIAGNOSTICS_BACKFILL_KEY = "normalized_feedback_diagnostics_backfill_v1";
+const FEEDBACK_SCHEMA_MIGRATIONS_KEY = "feedback_schema_migrations_v2";
 
 // Helper to safely add a column if it doesn't exist
 async function addColumnIfNotExists(table: string, column: string, definition: string) {
@@ -46,7 +47,7 @@ async function markMigrationComplete(key: string) {
   }
 }
 
-async function runNormalizedDiagnosticsBackfillIfNeeded() {
+async function isMigrationComplete(key: string): Promise<boolean> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS migration_state (
       migration_key TEXT PRIMARY KEY,
@@ -57,22 +58,44 @@ async function runNormalizedDiagnosticsBackfillIfNeeded() {
 
   const existing = await db.execute({
     sql: "SELECT migration_key FROM migration_state WHERE migration_key = ?",
-    args: [NORMALIZED_DIAGNOSTICS_BACKFILL_KEY],
+    args: [key],
   });
 
-  if (existing.rows.length > 0) {
+  return existing.rows.length > 0;
+}
+
+async function runNormalizedDiagnosticsBackfillIfNeeded() {
+  if (await isMigrationComplete(NORMALIZED_DIAGNOSTICS_BACKFILL_KEY)) {
     return;
   }
 
-  const hasLegacyDiagnostics = await hasLegacyDiagnosticsSourceData(db);
-  if (hasLegacyDiagnostics) {
-    await backfillLegacyDiagnostics(db);
-  }
+  // Claim completion marker first so this path never blocks repeated requests.
   await markMigrationComplete(NORMALIZED_DIAGNOSTICS_BACKFILL_KEY);
+
+  let hasLegacyDiagnostics = false;
+  try {
+    hasLegacyDiagnostics = await hasLegacyDiagnosticsSourceData(db);
+  } catch (error) {
+    console.log("Legacy diagnostics precheck failed:", error);
+    return;
+  }
+
+  if (!hasLegacyDiagnostics) {
+    return;
+  }
+
+  // Run legacy backfill best-effort in the background to avoid blocking /api/feedback.
+  void backfillLegacyDiagnostics(db).catch((error) => {
+    console.log("Legacy diagnostics backfill failed:", error);
+  });
 }
 
 // Run migrations for existing tables
 async function runMigrations() {
+  if (await isMigrationComplete(FEEDBACK_SCHEMA_MIGRATIONS_KEY)) {
+    return;
+  }
+
   // Add new columns to feedback table if they don't exist
   // Note: SQLite doesn't allow non-constant defaults when adding columns
   await addColumnIfNotExists("feedback", "status", "TEXT DEFAULT 'open'");
@@ -112,6 +135,7 @@ async function runMigrations() {
   }
 
   await runNormalizedDiagnosticsBackfillIfNeeded();
+  await markMigrationComplete(FEEDBACK_SCHEMA_MIGRATIONS_KEY);
 }
 
 // Initialize the database tables
