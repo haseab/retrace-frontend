@@ -1,9 +1,16 @@
 import { createClient } from "@libsql/client";
+import {
+  backfillLegacyDiagnostics,
+  ensureFeedbackDiagnosticsTables,
+  hasLegacyDiagnosticsSourceData,
+} from "@/lib/feedback-diagnostics";
 
 export const db = createClient({
   url: process.env.TURSO_DATABASE_URL!,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
+
+const NORMALIZED_DIAGNOSTICS_BACKFILL_KEY = "normalized_feedback_diagnostics_backfill_v1";
 
 // Helper to safely add a column if it doesn't exist
 async function addColumnIfNotExists(table: string, column: string, definition: string) {
@@ -22,6 +29,48 @@ async function addColumnIfNotExists(table: string, column: string, definition: s
   }
 }
 
+async function markMigrationComplete(key: string) {
+  try {
+    await db.execute({
+      sql: `
+        INSERT INTO migration_state (migration_key, migration_value, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(migration_key) DO UPDATE SET
+          migration_value = excluded.migration_value,
+          updated_at = datetime('now')
+      `,
+      args: [key, new Date().toISOString()],
+    });
+  } catch (error) {
+    console.log(`Migration marker warning for ${key}:`, error);
+  }
+}
+
+async function runNormalizedDiagnosticsBackfillIfNeeded() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS migration_state (
+      migration_key TEXT PRIMARY KEY,
+      migration_value TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  const existing = await db.execute({
+    sql: "SELECT migration_key FROM migration_state WHERE migration_key = ?",
+    args: [NORMALIZED_DIAGNOSTICS_BACKFILL_KEY],
+  });
+
+  if (existing.rows.length > 0) {
+    return;
+  }
+
+  const hasLegacyDiagnostics = await hasLegacyDiagnosticsSourceData(db);
+  if (hasLegacyDiagnostics) {
+    await backfillLegacyDiagnostics(db);
+  }
+  await markMigrationComplete(NORMALIZED_DIAGNOSTICS_BACKFILL_KEY);
+}
+
 // Run migrations for existing tables
 async function runMigrations() {
   // Add new columns to feedback table if they don't exist
@@ -32,6 +81,16 @@ async function runMigrations() {
   await addColumnIfNotExists("feedback", "updated_at", "TEXT"); // No default - will be NULL initially
   await addColumnIfNotExists("feedback", "tags", "TEXT DEFAULT '[]'");
   await addColumnIfNotExists("feedback", "is_read", "INTEGER DEFAULT 0");
+  await addColumnIfNotExists("feedback", "diagnostics_timestamp", "TEXT");
+  await addColumnIfNotExists("feedback", "settings_snapshot", "TEXT");
+  await addColumnIfNotExists("feedback", "display_info", "TEXT");
+  await addColumnIfNotExists("feedback", "process_info", "TEXT");
+  await addColumnIfNotExists("feedback", "accessibility_info", "TEXT");
+  await addColumnIfNotExists("feedback", "performance_info", "TEXT");
+  await addColumnIfNotExists("feedback", "emergency_crash_reports", "TEXT");
+  await addColumnIfNotExists("feedback", "display_count", "INTEGER DEFAULT 0");
+
+  await ensureFeedbackDiagnosticsTables(db);
 
   // Backfill NULL updated_at with created_at
   try {
@@ -45,6 +104,14 @@ async function runMigrations() {
   } catch {
     // Ignore errors here
   }
+
+  try {
+    await db.execute(`UPDATE feedback SET display_count = 0 WHERE display_count IS NULL`);
+  } catch {
+    // Ignore errors here
+  }
+
+  await runNormalizedDiagnosticsBackfillIfNeeded();
 }
 
 // Initialize the database tables
@@ -72,6 +139,14 @@ export async function initDatabase() {
       database_size_mb REAL,
       recent_errors TEXT,
       recent_logs TEXT,
+      diagnostics_timestamp TEXT,
+      settings_snapshot TEXT,
+      display_info TEXT,
+      process_info TEXT,
+      accessibility_info TEXT,
+      performance_info TEXT,
+      emergency_crash_reports TEXT,
+      display_count INTEGER DEFAULT 0,
       has_screenshot INTEGER DEFAULT 0,
       screenshot_data BLOB,
       created_at TEXT DEFAULT (datetime('now')),
@@ -87,6 +162,9 @@ export async function initDatabase() {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback(priority)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_is_read ON feedback(is_read)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_updated_at ON feedback(updated_at DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_diagnostics_timestamp ON feedback(diagnostics_timestamp DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_display_count ON feedback(display_count)`);
 
   // Create feedback_notes table for comments
   await db.execute(`

@@ -10,6 +10,56 @@ export interface DatabaseStats {
   databaseSizeMB: number;
 }
 
+export interface DiagnosticDisplay {
+  index: number;
+  resolution: string;
+  backingScaleFactor: string;
+  colorSpace: string;
+  refreshRate: string;
+  isRetina: boolean;
+  frame: string;
+}
+
+export interface DiagnosticDisplayInfo {
+  count: number;
+  displays: DiagnosticDisplay[];
+  mainDisplayIndex: number;
+}
+
+export interface DiagnosticProcessInfo {
+  totalRunning: number;
+  eventMonitoringApps: number;
+  windowManagementApps: number;
+  securityApps: number;
+  hasJamf: boolean;
+  hasKandji: boolean;
+  axuiServerCPU: number;
+  windowServerCPU: number;
+}
+
+export interface DiagnosticAccessibilityInfo {
+  voiceOverEnabled: boolean;
+  switchControlEnabled: boolean;
+  reduceMotionEnabled: boolean;
+  increaseContrastEnabled: boolean;
+  reduceTransparencyEnabled: boolean;
+  differentiateWithoutColorEnabled: boolean;
+  displayHasInvertedColors: boolean;
+}
+
+export interface DiagnosticPerformanceInfo {
+  cpuUsagePercent: number;
+  memoryUsedGB: number;
+  memoryTotalGB: number;
+  memoryPressure: string;
+  swapUsedGB: number;
+  thermalState: string;
+  processorCount: number;
+  isLowPowerModeEnabled: boolean;
+  powerSource: string;
+  batteryLevel: number | null;
+}
+
 // Note/comment on a feedback item
 export interface FeedbackNote {
   id: number;
@@ -38,6 +88,14 @@ export interface FeedbackItem {
   databaseStats: DatabaseStats;
   recentErrors: string[];
   recentLogs: string[];
+  diagnosticsTimestamp: string | null;
+  settingsSnapshot: Record<string, string>;
+  displayCount: number;
+  displayInfo: DiagnosticDisplayInfo;
+  processInfo: DiagnosticProcessInfo;
+  accessibilityInfo: DiagnosticAccessibilityInfo;
+  performanceInfo: DiagnosticPerformanceInfo;
+  emergencyCrashReports: string[];
   hasScreenshot: boolean;
   createdAt: string;
   updatedAt: string;

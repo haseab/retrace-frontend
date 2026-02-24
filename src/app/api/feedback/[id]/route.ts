@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, initDatabase } from "@/lib/db";
+import {
+  getNormalizedDiagnosticsByFeedbackIds,
+  mapFeedbackRowToApiItem,
+} from "@/lib/feedback-diagnostics";
 
 let initialized = false;
+
+function toFeedbackId(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.trunc(parsed);
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -107,37 +119,18 @@ export async function PATCH(
       );
     }
 
-    const row = result.rows[0];
+    const row = result.rows[0] as Record<string, unknown>;
+    const feedbackId = toFeedbackId(row.id);
+    const normalizedDiagnosticsById = feedbackId
+      ? await getNormalizedDiagnosticsByFeedbackIds(db, [feedbackId])
+      : new Map();
+
     return NextResponse.json({
       success: true,
-      feedback: {
-        id: row.id,
-        type: row.type,
-        email: row.email,
-        description: row.description,
-        isRead: row.is_read === 1,
-        status: row.status || "open",
-        priority: row.priority || "medium",
-        notes: row.notes || "",
-        tags: JSON.parse((row.tags as string) || "[]"),
-        appVersion: row.app_version,
-        buildNumber: row.build_number,
-        macOSVersion: row.macos_version,
-        deviceModel: row.device_model,
-        totalDiskSpace: row.total_disk_space,
-        freeDiskSpace: row.free_disk_space,
-        databaseStats: {
-          sessionCount: row.session_count,
-          frameCount: row.frame_count,
-          segmentCount: row.segment_count,
-          databaseSizeMB: row.database_size_mb,
-        },
-        recentErrors: JSON.parse((row.recent_errors as string) || "[]"),
-        recentLogs: JSON.parse((row.recent_logs as string) || "[]"),
-        hasScreenshot: row.has_screenshot === 1,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at || row.created_at,
-      },
+      feedback: mapFeedbackRowToApiItem(
+        row,
+        feedbackId ? normalizedDiagnosticsById.get(feedbackId) : undefined
+      ),
     });
   } catch (error) {
     console.error("Error updating feedback:", error);

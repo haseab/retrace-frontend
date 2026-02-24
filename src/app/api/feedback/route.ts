@@ -1,5 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, initDatabase } from "@/lib/db";
+import {
+  DEFAULT_ACCESSIBILITY_INFO,
+  DEFAULT_DISPLAY_INFO,
+  DEFAULT_PERFORMANCE_INFO,
+  DEFAULT_PROCESS_INFO,
+  getNormalizedDiagnosticsByFeedbackIds,
+  mapFeedbackRowToApiItem,
+  stringifyJson,
+  upsertFeedbackDiagnostics,
+} from "@/lib/feedback-diagnostics";
+import type {
+  FeedbackAccessibilityInfo,
+  FeedbackDisplayInfo,
+  FeedbackPerformanceInfo,
+  FeedbackProcessInfo,
+} from "@/lib/feedback-diagnostics";
 
 // Feedback submission structure matching FeedbackModels.swift
 interface FeedbackSubmission {
@@ -19,9 +35,15 @@ interface FeedbackSubmission {
       segmentCount: number;
       databaseSizeMB: number;
     };
+    settingsSnapshot?: Record<string, unknown>;
     recentErrors: string[];
     recentLogs?: string[];
-    timestamp: string;
+    timestamp?: string;
+    displayInfo?: FeedbackDisplayInfo;
+    processInfo?: FeedbackProcessInfo;
+    accessibilityInfo?: FeedbackAccessibilityInfo;
+    performanceInfo?: FeedbackPerformanceInfo;
+    emergencyCrashReports?: string[];
   };
   includeScreenshot: boolean;
   screenshotData?: string; // Base64 encoded PNG
@@ -29,6 +51,28 @@ interface FeedbackSubmission {
 
 // Ensure table exists on first request
 let initialized = false;
+
+function toFeedbackId(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.trunc(parsed);
+}
+
+function getDisplayCount(displayInfo: FeedbackDisplayInfo | undefined): number {
+  if (!displayInfo) {
+    return 0;
+  }
+
+  const displayLength = Array.isArray(displayInfo.displays) ? displayInfo.displays.length : 0;
+  const parsedCount = Number(displayInfo.count);
+  if (!Number.isFinite(parsedCount)) {
+    return displayLength;
+  }
+
+  return Math.max(0, Math.max(Math.trunc(parsedCount), displayLength));
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,7 +109,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert into Turso database with new fields (status, priority, notes default values)
+    const diagnosticsTimestamp = body.diagnostics.timestamp || new Date().toISOString();
+    const displayCount = getDisplayCount(body.diagnostics.displayInfo);
+
+    // Insert into Turso database with diagnostics fields
     const result = await db.execute({
       sql: `
         INSERT INTO feedback (
@@ -73,32 +120,62 @@ export async function POST(request: NextRequest) {
           app_version, build_number, macos_version,
           device_model, total_disk_space, free_disk_space, session_count,
           frame_count, segment_count, database_size_mb, recent_errors,
-          recent_logs, has_screenshot, screenshot_data
-        ) VALUES (?, ?, ?, 'open', 'medium', '', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          recent_logs, diagnostics_timestamp, settings_snapshot, display_info,
+          process_info, accessibility_info, performance_info, emergency_crash_reports,
+          display_count, has_screenshot, screenshot_data
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         body.type,
         body.email || null,
         body.description,
+        "open",
+        "medium",
+        "",
+        0,
         body.diagnostics.appVersion,
         body.diagnostics.buildNumber,
         body.diagnostics.macOSVersion,
         body.diagnostics.deviceModel,
         body.diagnostics.totalDiskSpace,
         body.diagnostics.freeDiskSpace,
-        body.diagnostics.databaseStats.sessionCount,
-        body.diagnostics.databaseStats.frameCount,
-        body.diagnostics.databaseStats.segmentCount,
-        body.diagnostics.databaseStats.databaseSizeMB,
-        JSON.stringify(body.diagnostics.recentErrors),
-        JSON.stringify(body.diagnostics.recentLogs || []),
+        body.diagnostics.databaseStats?.sessionCount ?? 0,
+        body.diagnostics.databaseStats?.frameCount ?? 0,
+        body.diagnostics.databaseStats?.segmentCount ?? 0,
+        body.diagnostics.databaseStats?.databaseSizeMB ?? 0,
+        stringifyJson(body.diagnostics.recentErrors, []),
+        stringifyJson(body.diagnostics.recentLogs || [], []),
+        diagnosticsTimestamp,
+        stringifyJson(body.diagnostics.settingsSnapshot || {}, {}),
+        stringifyJson(body.diagnostics.displayInfo || DEFAULT_DISPLAY_INFO, DEFAULT_DISPLAY_INFO),
+        stringifyJson(body.diagnostics.processInfo || DEFAULT_PROCESS_INFO, DEFAULT_PROCESS_INFO),
+        stringifyJson(body.diagnostics.accessibilityInfo || DEFAULT_ACCESSIBILITY_INFO, DEFAULT_ACCESSIBILITY_INFO),
+        stringifyJson(body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO, DEFAULT_PERFORMANCE_INFO),
+        stringifyJson(body.diagnostics.emergencyCrashReports || [], []),
+        displayCount,
         body.includeScreenshot && body.screenshotData ? 1 : 0,
         body.screenshotData ? Buffer.from(body.screenshotData, "base64") : null,
       ],
     });
 
+    const feedbackId = toFeedbackId(result.lastInsertRowid);
+    if (feedbackId === null) {
+      throw new Error("Failed to determine inserted feedback id");
+    }
+
+    await upsertFeedbackDiagnostics(db, feedbackId, {
+      settingsSnapshot: body.diagnostics.settingsSnapshot || {},
+      recentErrors: body.diagnostics.recentErrors || [],
+      recentLogs: body.diagnostics.recentLogs || [],
+      displayInfo: body.diagnostics.displayInfo || DEFAULT_DISPLAY_INFO,
+      processInfo: body.diagnostics.processInfo || DEFAULT_PROCESS_INFO,
+      accessibilityInfo: body.diagnostics.accessibilityInfo || DEFAULT_ACCESSIBILITY_INFO,
+      performanceInfo: body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO,
+      emergencyCrashReports: body.diagnostics.emergencyCrashReports || [],
+    });
+
     console.log("Feedback saved to Turso:", {
-      id: result.lastInsertRowid,
+      id: feedbackId,
       type: body.type,
       appVersion: body.diagnostics.appVersion,
     });
@@ -106,7 +183,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Feedback submitted successfully",
-      id: result.lastInsertRowid?.toString(),
+      id: feedbackId.toString(),
     });
   } catch (error) {
     console.error("Error processing feedback:", error);
@@ -159,37 +236,21 @@ export async function GET(request: NextRequest) {
     sql += " ORDER BY updated_at DESC";
 
     const result = await db.execute({ sql, args });
+    const feedbackRows = result.rows as Record<string, unknown>[];
+
+    const feedbackIds = feedbackRows
+      .map((row) => toFeedbackId(row.id))
+      .filter((id): id is number => id !== null);
+
+    const normalizedDiagnosticsById = await getNormalizedDiagnosticsByFeedbackIds(db, feedbackIds);
 
     return NextResponse.json({
-      count: result.rows.length,
-      feedback: result.rows.map((row) => ({
-        id: row.id,
-        type: row.type,
-        email: row.email,
-        description: row.description,
-        isRead: row.is_read === 1,
-        status: row.status || "open",
-        priority: row.priority || "medium",
-        notes: row.notes || "",
-        tags: JSON.parse((row.tags as string) || "[]"),
-        appVersion: row.app_version,
-        buildNumber: row.build_number,
-        macOSVersion: row.macos_version,
-        deviceModel: row.device_model,
-        totalDiskSpace: row.total_disk_space,
-        freeDiskSpace: row.free_disk_space,
-        databaseStats: {
-          sessionCount: row.session_count,
-          frameCount: row.frame_count,
-          segmentCount: row.segment_count,
-          databaseSizeMB: row.database_size_mb,
-        },
-        recentErrors: JSON.parse((row.recent_errors as string) || "[]"),
-        recentLogs: JSON.parse((row.recent_logs as string) || "[]"),
-        hasScreenshot: row.has_screenshot === 1,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at || row.created_at,
-      })),
+      count: feedbackRows.length,
+      feedback: feedbackRows.map((row) => {
+        const feedbackId = toFeedbackId(row.id);
+        const diagnostics = feedbackId === null ? undefined : normalizedDiagnosticsById.get(feedbackId);
+        return mapFeedbackRowToApiItem(row, diagnostics);
+      }),
     });
   } catch (error) {
     console.error("Error fetching feedback:", error);

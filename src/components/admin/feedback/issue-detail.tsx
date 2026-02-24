@@ -15,6 +15,8 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
   const [copiedErrors, setCopiedErrors] = useState(false);
   const [screenshotModalOpen, setScreenshotModalOpen] = useState(false);
   const [isModalClosing, setIsModalClosing] = useState(false);
+  const [expandedCrashReports, setExpandedCrashReports] = useState(false);
+  const [expandedSettings, setExpandedSettings] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<FeedbackNote[]>([]);
@@ -50,6 +52,8 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
   useEffect(() => {
     if (issue) {
       setExpandedLogs(false);
+      setExpandedCrashReports(false);
+      setExpandedSettings(false);
       fetchComments(issue.id);
     } else {
       setComments([]);
@@ -228,6 +232,19 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
     setCopiedErrors(true);
     setTimeout(() => setCopiedErrors(false), 2000);
   };
+
+  const enabledAccessibilityFlags = [
+    issue.accessibilityInfo.voiceOverEnabled ? "VoiceOver" : null,
+    issue.accessibilityInfo.switchControlEnabled ? "SwitchControl" : null,
+    issue.accessibilityInfo.reduceMotionEnabled ? "ReduceMotion" : null,
+    issue.accessibilityInfo.increaseContrastEnabled ? "IncreaseContrast" : null,
+    issue.accessibilityInfo.reduceTransparencyEnabled ? "ReduceTransparency" : null,
+    issue.accessibilityInfo.differentiateWithoutColorEnabled ? "DifferentiateWithoutColor" : null,
+    issue.accessibilityInfo.displayHasInvertedColors ? "InvertColors" : null,
+  ].filter((flag): flag is string => flag !== null);
+
+  const settingsEntries = Object.entries(issue.settingsSnapshot || {});
+  const displayCount = Math.max(issue.displayCount ?? 0, issue.displayInfo.displays.length);
 
   return (
     <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
@@ -638,6 +655,12 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
               <span className="text-[hsl(var(--muted-foreground))]">Disk:</span>{" "}
               {issue.freeDiskSpace} free
             </div>
+            {issue.diagnosticsTimestamp && (
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5 col-span-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Captured:</span>{" "}
+                {formatDate(issue.diagnosticsTimestamp)}
+              </div>
+            )}
           </div>
 
           {/* Database Stats */}
@@ -664,6 +687,219 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
               </div>
             </div>
           </div>
+
+          {/* Performance Snapshot */}
+          <div>
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
+              Performance Snapshot
+            </h3>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">CPU:</span>{" "}
+                {issue.performanceInfo.cpuUsagePercent.toFixed(1)}%
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Memory:</span>{" "}
+                {issue.performanceInfo.memoryUsedGB.toFixed(1)} / {issue.performanceInfo.memoryTotalGB.toFixed(1)} GB
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Pressure:</span>{" "}
+                {issue.performanceInfo.memoryPressure}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Swap:</span>{" "}
+                {issue.performanceInfo.swapUsedGB.toFixed(1)} GB
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Thermal:</span>{" "}
+                {issue.performanceInfo.thermalState}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Power:</span>{" "}
+                {issue.performanceInfo.powerSource}
+                {issue.performanceInfo.batteryLevel !== null ? " (" + issue.performanceInfo.batteryLevel + "%)" : ""}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Low Power:</span>{" "}
+                {issue.performanceInfo.isLowPowerModeEnabled ? "On" : "Off"}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Processors:</span>{" "}
+                {issue.performanceInfo.processorCount}
+              </div>
+            </div>
+          </div>
+
+          {/* Running Process Signals */}
+          <div>
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
+              Running Process Signals
+            </h3>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Total Running:</span>{" "}
+                {issue.processInfo.totalRunning}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Event Monitor Apps:</span>{" "}
+                {issue.processInfo.eventMonitoringApps}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Window Managers:</span>{" "}
+                {issue.processInfo.windowManagementApps}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">Security/MDM:</span>{" "}
+                {issue.processInfo.securityApps}
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">AXUIServer CPU:</span>{" "}
+                {issue.processInfo.axuiServerCPU.toFixed(1)}%
+              </div>
+              <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                <span className="text-[hsl(var(--muted-foreground))]">WindowServer CPU:</span>{" "}
+                {issue.processInfo.windowServerCPU.toFixed(1)}%
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {issue.processInfo.hasJamf && (
+                <span className="px-2 py-0.5 text-[10px] rounded border bg-amber-500/20 text-amber-300 border-amber-500/30">
+                  Jamf detected
+                </span>
+              )}
+              {issue.processInfo.hasKandji && (
+                <span className="px-2 py-0.5 text-[10px] rounded border bg-amber-500/20 text-amber-300 border-amber-500/30">
+                  Kandji detected
+                </span>
+              )}
+              {!issue.processInfo.hasJamf && !issue.processInfo.hasKandji && (
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  No Jamf/Kandji markers
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Display Configuration */}
+          <div>
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
+              Displays ({displayCount})
+            </h3>
+            <div className="space-y-1.5">
+              {issue.displayInfo.displays.length > 0 ? (
+                issue.displayInfo.displays.map((display) => (
+                  <div
+                    key={display.index + "-" + display.frame}
+                    className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span>
+                        [{display.index}] {display.resolution} @{display.backingScaleFactor}x {display.refreshRate} {display.colorSpace}
+                      </span>
+                      {display.index === issue.displayInfo.mainDisplayIndex && (
+                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Main
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                      frame {display.frame} • {display.isRetina ? "Retina" : "Non-Retina"}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  No display data captured.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Accessibility Flags */}
+          <div>
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
+              Accessibility
+            </h3>
+            {enabledAccessibilityFlags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {enabledAccessibilityFlags.map((flag) => (
+                  <span
+                    key={flag}
+                    className="px-2 py-0.5 text-[10px] rounded border bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                  >
+                    {flag}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                No accessibility flags enabled.
+              </div>
+            )}
+          </div>
+
+          {/* Settings Snapshot */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                Settings Snapshot ({settingsEntries.length})
+              </h3>
+              {settingsEntries.length > 12 && (
+                <button
+                  onClick={() => setExpandedSettings(!expandedSettings)}
+                  className="text-[10px] text-[hsl(var(--primary))] hover:underline"
+                >
+                  {expandedSettings ? "Show less" : "Show all"}
+                </button>
+              )}
+            </div>
+            {settingsEntries.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {(expandedSettings ? settingsEntries : settingsEntries.slice(0, 12)).map(([key, value]) => (
+                  <div key={key} className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
+                    <span className="text-[hsl(var(--muted-foreground))]">{key}:</span>{" "}
+                    <span className="font-mono">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                No settings snapshot captured.
+              </div>
+            )}
+          </div>
+
+          {/* Emergency Crash Reports */}
+          {issue.emergencyCrashReports.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-xs font-medium text-amber-300">
+                  Emergency Crash Reports ({issue.emergencyCrashReports.length})
+                </h3>
+                {issue.emergencyCrashReports.length > 1 && (
+                  <button
+                    onClick={() => setExpandedCrashReports(!expandedCrashReports)}
+                    className="text-[10px] text-[hsl(var(--primary))] hover:underline"
+                  >
+                    {expandedCrashReports ? "Show less" : "Show all"}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {(expandedCrashReports ? issue.emergencyCrashReports : issue.emergencyCrashReports.slice(0, 1)).map((report, index) => (
+                  <div key={index} className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 max-h-48 overflow-y-auto">
+                    <pre className="text-[10px] text-amber-100 whitespace-pre-wrap">{report}</pre>
+                  </div>
+                ))}
+                {!expandedCrashReports && issue.emergencyCrashReports.length > 1 && (
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    ... and {issue.emergencyCrashReports.length - 1} more report(s)
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
 
           {/* Recent Errors */}
           {issue.recentErrors.length > 0 && (
