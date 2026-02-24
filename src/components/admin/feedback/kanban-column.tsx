@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { FeedbackItem, FeedbackStatus, STATUS_CONFIG } from "@/lib/types/feedback";
@@ -8,11 +9,25 @@ import { SortableIssueCard } from "./sortable-issue-card";
 interface KanbanColumnProps {
   status: FeedbackStatus;
   issues: FeedbackItem[];
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: (status: FeedbackStatus) => void;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
 }
 
-export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanColumnProps) {
+export function KanbanColumn({
+  status,
+  issues,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+  selectedId,
+  onSelect,
+}: KanbanColumnProps) {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   const { setNodeRef, isOver } = useDroppable({
     id: status,
     data: {
@@ -20,6 +35,35 @@ export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanCol
       status,
     },
   });
+
+  useEffect(() => {
+    if (!hasMore || isLoadingMore) {
+      return;
+    }
+
+    const root = scrollContainerRef.current;
+    const target = loadMoreRef.current;
+    if (!root || !target) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting) {
+          onLoadMore(status);
+        }
+      },
+      {
+        root,
+        rootMargin: "140px 0px",
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [status, hasMore, isLoadingMore, onLoadMore, issues.length]);
 
   const statusConfig = STATUS_CONFIG[status];
   const issueIds = issues.map((issue) => issue.id.toString());
@@ -45,7 +89,10 @@ export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanCol
 
       {/* Drop Zone - entire column is droppable */}
       <div
-        ref={setNodeRef}
+        ref={(node) => {
+          setNodeRef(node);
+          scrollContainerRef.current = node;
+        }}
         className={`flex-1 rounded-xl p-2 min-h-[200px] overflow-y-auto transition-all duration-300 ease-out ${
           isOver
             ? "bg-[hsl(var(--primary))]/20 ring-2 ring-[hsl(var(--primary))] ring-inset scale-[1.01] shadow-lg shadow-[hsl(var(--primary))]/10"
@@ -76,6 +123,20 @@ export function KanbanColumn({ status, issues, selectedId, onSelect }: KanbanCol
             isOver ? "text-[hsl(var(--primary))] scale-105" : "text-[hsl(var(--muted-foreground))]"
           }`}>
             {isOver ? "Drop here" : "No issues"}
+          </div>
+        )}
+
+        <div ref={loadMoreRef} className="h-2 w-full" />
+
+        {isLoadingMore && (
+          <div className="py-2 text-center text-xs text-[hsl(var(--muted-foreground))]">
+            Loading more...
+          </div>
+        )}
+
+        {!hasMore && issues.length > 0 && (
+          <div className="py-2 text-center text-xs text-[hsl(var(--muted-foreground))]">
+            End of column
           </div>
         )}
       </div>

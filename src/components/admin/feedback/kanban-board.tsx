@@ -20,10 +20,13 @@ import { IssueCard } from "./issue-card";
 const STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "closed"];
 
 interface KanbanBoardProps {
-  issues: FeedbackItem[];
+  issuesByStatus: Record<FeedbackStatus, FeedbackItem[]>;
+  hasMoreByStatus: Record<FeedbackStatus, boolean>;
+  isLoadingByStatus: Record<FeedbackStatus, boolean>;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
+  onLoadMore: (status: FeedbackStatus) => void;
 }
 
 function getCreatedTimestamp(createdAt: string): number {
@@ -31,8 +34,18 @@ function getCreatedTimestamp(createdAt: string): number {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: KanbanBoardProps) {
+export function KanbanBoard({
+  issuesByStatus,
+  hasMoreByStatus,
+  isLoadingByStatus,
+  selectedId,
+  onSelect,
+  onUpdateStatus,
+  onLoadMore,
+}: KanbanBoardProps) {
   const [activeIssue, setActiveIssue] = useState<FeedbackItem | null>(null);
+
+  const allIssues = STATUSES.flatMap((status) => issuesByStatus[status] ?? []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -45,16 +58,15 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
     })
   );
 
-  const issuesByStatus = STATUSES.reduce((acc, status) => {
-    acc[status] = issues
-      .filter((issue) => issue.status === status)
-      .sort((a, b) => getCreatedTimestamp(b.createdAt) - getCreatedTimestamp(a.createdAt));
+  const sortedIssuesByStatus = STATUSES.reduce((acc, status) => {
+    const issues = issuesByStatus[status] ?? [];
+    acc[status] = [...issues].sort((a, b) => getCreatedTimestamp(b.createdAt) - getCreatedTimestamp(a.createdAt));
     return acc;
   }, {} as Record<FeedbackStatus, FeedbackItem[]>);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const issue = issues.find((i) => i.id.toString() === active.id);
+    const issue = allIssues.find((i) => i.id.toString() === active.id);
     if (issue) {
       setActiveIssue(issue);
     }
@@ -70,7 +82,7 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
     const overId = over.id.toString();
 
     // Find the issue being dragged
-    const draggedIssue = issues.find((i) => i.id.toString() === activeId);
+    const draggedIssue = allIssues.find((i) => i.id.toString() === activeId);
     if (!draggedIssue) return;
 
     // Determine the target status
@@ -81,7 +93,7 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
       targetStatus = overId as FeedbackStatus;
     } else {
       // Dropped on another issue - find which column that issue is in
-      const overIssue = issues.find((i) => i.id.toString() === overId);
+      const overIssue = allIssues.find((i) => i.id.toString() === overId);
       if (overIssue) {
         targetStatus = overIssue.status;
       }
@@ -109,7 +121,10 @@ export function KanbanBoard({ issues, selectedId, onSelect, onUpdateStatus }: Ka
           >
             <KanbanColumn
               status={status}
-              issues={issuesByStatus[status]}
+              issues={sortedIssuesByStatus[status]}
+              hasMore={hasMoreByStatus[status]}
+              isLoadingMore={isLoadingByStatus[status]}
+              onLoadMore={onLoadMore}
               selectedId={selectedId}
               onSelect={onSelect}
             />

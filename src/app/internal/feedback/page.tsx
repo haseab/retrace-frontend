@@ -1,15 +1,74 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { FeedbackItem, FeedbackFilters, FeedbackStatus, FeedbackPriority, ViewMode, FeedbackResponse } from "@/lib/types/feedback";
 import { FiltersBar } from "@/components/admin/feedback/filters-bar";
 import { KanbanBoard } from "@/components/admin/feedback/kanban-board";
 import { ListView } from "@/components/admin/feedback/list-view";
 import { IssueDetail } from "@/components/admin/feedback/issue-detail";
 
+const KANBAN_STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "closed"];
+const KANBAN_PAGE_SIZE = 10;
+const LIST_PAGE_SIZE = 30;
+
+interface ColumnPaginationState {
+  hasMore: boolean;
+  isLoading: boolean;
+}
+
+interface FetchFeedbackPageOptions {
+  limit: number;
+  offset: number;
+  status?: FeedbackStatus;
+  includeListStatusFilter?: boolean;
+}
+
+function createEmptyIssuesByStatus(): Record<FeedbackStatus, FeedbackItem[]> {
+  return {
+    open: [],
+    in_progress: [],
+    resolved: [],
+    closed: [],
+  };
+}
+
+function createEmptyColumnPagination(): Record<FeedbackStatus, ColumnPaginationState> {
+  return {
+    open: { hasMore: false, isLoading: false },
+    in_progress: { hasMore: false, isLoading: false },
+    resolved: { hasMore: false, isLoading: false },
+    closed: { hasMore: false, isLoading: false },
+  };
+}
+
+function appendUniqueIssues(existing: FeedbackItem[], incoming: FeedbackItem[]): FeedbackItem[] {
+  if (incoming.length === 0) {
+    return existing;
+  }
+
+  const seen = new Set(existing.map((issue) => issue.id));
+  const nextItems = incoming.filter((issue) => !seen.has(issue.id));
+  if (nextItems.length === 0) {
+    return existing;
+  }
+
+  return [...existing, ...nextItems];
+}
+
 export default function FeedbackPage() {
-  const [issues, setIssues] = useState<FeedbackItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [listIssues, setListIssues] = useState<FeedbackItem[]>([]);
+  const [isListLoading, setIsListLoading] = useState(true);
+  const [isListLoadingMore, setIsListLoadingMore] = useState(false);
+  const [listHasMore, setListHasMore] = useState(false);
+
+  const [kanbanIssuesByStatus, setKanbanIssuesByStatus] = useState<Record<FeedbackStatus, FeedbackItem[]>>(
+    createEmptyIssuesByStatus()
+  );
+  const [kanbanPagination, setKanbanPagination] = useState<Record<FeedbackStatus, ColumnPaginationState>>(
+    createEmptyColumnPagination()
+  );
+  const [isKanbanLoading, setIsKanbanLoading] = useState(true);
+
   const [selectedIssue, setSelectedIssue] = useState<FeedbackItem | null>(null);
   const [isDetailClosing, setIsDetailClosing] = useState(false);
   const [view, setView] = useState<ViewMode>("kanban");
@@ -20,30 +79,256 @@ export default function FeedbackPage() {
     search: "",
   });
 
-  const fetchIssues = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.type && filters.type !== "all") params.set("type", filters.type);
-      // Don't filter by status for kanban view - we need all statuses to show columns
-      if (view === "list" && filters.status && filters.status !== "all") params.set("status", filters.status);
-      if (filters.priority && filters.priority !== "all") params.set("priority", filters.priority);
-      if (filters.search) params.set("search", filters.search);
+  const activeQueryRef = useRef(0);
+  const listLoadMoreInFlightRef = useRef(false);
+  const kanbanLoadMoreInFlightRef = useRef<Record<FeedbackStatus, boolean>>({
+    open: false,
+    in_progress: false,
+    resolved: false,
+    closed: false,
+  });
 
-      const url = `/api/feedback${params.toString() ? `?${params.toString()}` : ""}`;
-      const res = await fetch(url);
-      const data: FeedbackResponse = await res.json();
-      setIssues(data.feedback || []);
-    } catch (error) {
-      console.error("Failed to fetch issues:", error);
-    } finally {
-      setIsLoading(false);
+  const fetchFeedbackPage = useCallback(async ({
+    limit,
+    offset,
+    status,
+    includeListStatusFilter = false,
+  }: FetchFeedbackPageOptions): Promise<FeedbackResponse> => {
+    const params = new URLSearchParams();
+
+    if (filters.type && filters.type !== "all") {
+      params.set("type", filters.type);
     }
-  }, [filters, view]);
+
+    if (status) {
+      params.set("status", status);
+    } else if (includeListStatusFilter && filters.status && filters.status !== "all") {
+      params.set("status", filters.status);
+    }
+
+    if (filters.priority && filters.priority !== "all") {
+      params.set("priority", filters.priority);
+    }
+
+    const search = filters.search?.trim();
+    if (search) {
+      params.set("search", search);
+    }
+
+    params.set("limit", limit.toString());
+    params.set("offset", offset.toString());
+
+    const url = `/api/feedback?${params.toString()}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch feedback: ${res.status}`);
+    }
+
+    const data: FeedbackResponse = await res.json();
+    return data;
+  }, [filters]);
+
+  const loadInitialList = useCallback(async () => {
+    const queryToken = ++activeQueryRef.current;
+    listLoadMoreInFlightRef.current = false;
+
+    setIsListLoading(true);
+    setIsListLoadingMore(false);
+    setListIssues([]);
+    setListHasMore(false);
+
+    try {
+      const data = await fetchFeedbackPage({
+        limit: LIST_PAGE_SIZE,
+        offset: 0,
+        includeListStatusFilter: true,
+      });
+      if (queryToken !== activeQueryRef.current) {
+        return;
+      }
+
+      setListIssues(data.feedback || []);
+      setListHasMore(data.hasMore);
+    } catch (error) {
+      console.error("Failed to fetch list issues:", error);
+    } finally {
+      if (queryToken === activeQueryRef.current) {
+        setIsListLoading(false);
+      }
+    }
+  }, [fetchFeedbackPage]);
+
+  const loadMoreList = useCallback(async () => {
+    if (isListLoading || isListLoadingMore || !listHasMore || listLoadMoreInFlightRef.current) {
+      return;
+    }
+
+    const queryToken = activeQueryRef.current;
+    const offset = listIssues.length;
+    listLoadMoreInFlightRef.current = true;
+    setIsListLoadingMore(true);
+
+    try {
+      const data = await fetchFeedbackPage({
+        limit: LIST_PAGE_SIZE,
+        offset,
+        includeListStatusFilter: true,
+      });
+      if (queryToken !== activeQueryRef.current) {
+        return;
+      }
+
+      setListIssues((prev) => appendUniqueIssues(prev, data.feedback || []));
+      setListHasMore(data.hasMore);
+    } catch (error) {
+      console.error("Failed to load more list issues:", error);
+    } finally {
+      if (queryToken === activeQueryRef.current) {
+        setIsListLoadingMore(false);
+      }
+      listLoadMoreInFlightRef.current = false;
+    }
+  }, [fetchFeedbackPage, isListLoading, isListLoadingMore, listHasMore, listIssues.length]);
+
+  const loadInitialKanban = useCallback(async () => {
+    const queryToken = ++activeQueryRef.current;
+    kanbanLoadMoreInFlightRef.current = {
+      open: false,
+      in_progress: false,
+      resolved: false,
+      closed: false,
+    };
+
+    setIsKanbanLoading(true);
+    setKanbanIssuesByStatus(createEmptyIssuesByStatus());
+    setKanbanPagination({
+      open: { hasMore: false, isLoading: true },
+      in_progress: { hasMore: false, isLoading: true },
+      resolved: { hasMore: false, isLoading: true },
+      closed: { hasMore: false, isLoading: true },
+    });
+
+    try {
+      await Promise.all(
+        KANBAN_STATUSES.map(async (status) => {
+          try {
+            const data = await fetchFeedbackPage({
+              limit: KANBAN_PAGE_SIZE,
+              offset: 0,
+              status,
+            });
+            if (queryToken !== activeQueryRef.current) {
+              return;
+            }
+
+            setKanbanIssuesByStatus((prev) => ({
+              ...prev,
+              [status]: data.feedback || [],
+            }));
+            setKanbanPagination((prev) => ({
+              ...prev,
+              [status]: {
+                hasMore: data.hasMore,
+                isLoading: false,
+              },
+            }));
+          } catch (error) {
+            console.error(`Failed to fetch kanban status "${status}":`, error);
+            if (queryToken !== activeQueryRef.current) {
+              return;
+            }
+
+            setKanbanPagination((prev) => ({
+              ...prev,
+              [status]: {
+                hasMore: false,
+                isLoading: false,
+              },
+            }));
+          }
+        })
+      );
+    } finally {
+      if (queryToken === activeQueryRef.current) {
+        setIsKanbanLoading(false);
+      }
+    }
+  }, [fetchFeedbackPage]);
+
+  const loadMoreKanbanStatus = useCallback(async (status: FeedbackStatus) => {
+    const statusState = kanbanPagination[status];
+    if (!statusState || isKanbanLoading || statusState.isLoading || !statusState.hasMore || kanbanLoadMoreInFlightRef.current[status]) {
+      return;
+    }
+
+    const queryToken = activeQueryRef.current;
+    const offset = kanbanIssuesByStatus[status].length;
+
+    kanbanLoadMoreInFlightRef.current[status] = true;
+    setKanbanPagination((prev) => ({
+      ...prev,
+      [status]: {
+        ...prev[status],
+        isLoading: true,
+      },
+    }));
+
+    try {
+      const data = await fetchFeedbackPage({
+        limit: KANBAN_PAGE_SIZE,
+        offset,
+        status,
+      });
+      if (queryToken !== activeQueryRef.current) {
+        return;
+      }
+
+      setKanbanIssuesByStatus((prev) => ({
+        ...prev,
+        [status]: appendUniqueIssues(prev[status], data.feedback || []),
+      }));
+      setKanbanPagination((prev) => ({
+        ...prev,
+        [status]: {
+          hasMore: data.hasMore,
+          isLoading: false,
+        },
+      }));
+    } catch (error) {
+      console.error(`Failed to load more "${status}" issues:`, error);
+      if (queryToken === activeQueryRef.current) {
+        setKanbanPagination((prev) => ({
+          ...prev,
+          [status]: {
+            ...prev[status],
+            isLoading: false,
+          },
+        }));
+      }
+    } finally {
+      kanbanLoadMoreInFlightRef.current[status] = false;
+    }
+  }, [fetchFeedbackPage, isKanbanLoading, kanbanIssuesByStatus, kanbanPagination]);
 
   useEffect(() => {
-    fetchIssues();
-  }, [fetchIssues]);
+    setSelectedIssue(null);
+    if (view === "list") {
+      void loadInitialList();
+      return;
+    }
+
+    void loadInitialKanban();
+  }, [filters, view, loadInitialKanban, loadInitialList]);
+
+  const handleRefresh = useCallback(() => {
+    if (view === "list") {
+      void loadInitialList();
+      return;
+    }
+
+    void loadInitialKanban();
+  }, [view, loadInitialKanban, loadInitialList]);
 
   const handleCloseDetail = useCallback(() => {
     if (selectedIssue && !isDetailClosing) {
@@ -66,20 +351,62 @@ export default function FeedbackPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedIssue, handleCloseDetail]);
 
+  const applyIssuePatchLocally = useCallback((id: number, patch: Partial<FeedbackItem>) => {
+    setListIssues((prev) => {
+      const next = prev.map((issue) =>
+        issue.id === id ? { ...issue, ...patch } : issue
+      );
+
+      if (view === "list" && patch.status && filters.status && filters.status !== "all") {
+        return next.filter((issue) => issue.status === filters.status);
+      }
+
+      return next;
+    });
+
+    setKanbanIssuesByStatus((prev) => {
+      const next: Record<FeedbackStatus, FeedbackItem[]> = {
+        open: prev.open.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+        in_progress: prev.in_progress.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+        resolved: prev.resolved.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+        closed: prev.closed.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+      };
+
+      if (!patch.status) {
+        return next;
+      }
+
+      const targetStatus = patch.status;
+      const sourceStatus = KANBAN_STATUSES.find((status) =>
+        prev[status].some((issue) => issue.id === id)
+      );
+
+      if (!sourceStatus || sourceStatus === targetStatus) {
+        return next;
+      }
+
+      const sourceIssue = prev[sourceStatus].find((issue) => issue.id === id);
+      if (!sourceIssue) {
+        return next;
+      }
+
+      const movedIssue: FeedbackItem = {
+        ...sourceIssue,
+        ...patch,
+        status: targetStatus,
+      };
+
+      next[sourceStatus] = next[sourceStatus].filter((issue) => issue.id !== id);
+      next[targetStatus] = [movedIssue, ...next[targetStatus].filter((issue) => issue.id !== id)];
+      return next;
+    });
+
+    setSelectedIssue((prev) => (
+      prev && prev.id === id ? { ...prev, ...patch } : prev
+    ));
+  }, [filters.status, view]);
+
   const handleUpdateStatus = async (id: number, status: FeedbackStatus) => {
-    // Optimistic update
-    const previousIssues = [...issues];
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === id ? { ...issue, status, updatedAt: new Date().toISOString() } : issue
-      )
-    );
-
-    // Update selected issue if it's the one being changed
-    if (selectedIssue?.id === id) {
-      setSelectedIssue((prev) => prev ? { ...prev, status, updatedAt: new Date().toISOString() } : null);
-    }
-
     try {
       const res = await fetch(`/api/feedback/${id}`, {
         method: "PATCH",
@@ -90,29 +417,17 @@ export default function FeedbackPage() {
       if (!res.ok) {
         throw new Error("Failed to update status");
       }
+
+      applyIssuePatchLocally(id, {
+        status,
+        updatedAt: new Date().toISOString(),
+      });
     } catch (error) {
       console.error("Failed to update status:", error);
-      // Rollback on failure
-      setIssues(previousIssues);
-      if (selectedIssue?.id === id) {
-        setSelectedIssue(previousIssues.find((i) => i.id === id) || null);
-      }
     }
   };
 
   const handleUpdatePriority = async (id: number, priority: FeedbackPriority) => {
-    // Optimistic update
-    const previousIssues = [...issues];
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === id ? { ...issue, priority, updatedAt: new Date().toISOString() } : issue
-      )
-    );
-
-    if (selectedIssue?.id === id) {
-      setSelectedIssue((prev) => prev ? { ...prev, priority, updatedAt: new Date().toISOString() } : null);
-    }
-
     try {
       const res = await fetch(`/api/feedback/${id}`, {
         method: "PATCH",
@@ -123,30 +438,17 @@ export default function FeedbackPage() {
       if (!res.ok) {
         throw new Error("Failed to update priority");
       }
+
+      applyIssuePatchLocally(id, {
+        priority,
+        updatedAt: new Date().toISOString(),
+      });
     } catch (error) {
       console.error("Failed to update priority:", error);
-      setIssues(previousIssues);
-      if (selectedIssue?.id === id) {
-        setSelectedIssue(previousIssues.find((i) => i.id === id) || null);
-      }
     }
   };
 
   const handleUpdate = async (id: number, updates: { status?: FeedbackStatus; priority?: FeedbackPriority; notes?: string; tags?: string[] }) => {
-    // Optimistic update
-    const previousIssues = [...issues];
-    const previousSelected = selectedIssue;
-
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === id ? { ...issue, ...updates, updatedAt: new Date().toISOString() } : issue
-      )
-    );
-
-    if (selectedIssue?.id === id) {
-      setSelectedIssue((prev) => prev ? { ...prev, ...updates, updatedAt: new Date().toISOString() } : null);
-    }
-
     try {
       const res = await fetch(`/api/feedback/${id}`, {
         method: "PATCH",
@@ -157,27 +459,17 @@ export default function FeedbackPage() {
       if (!res.ok) {
         throw new Error("Failed to update issue");
       }
+
+      applyIssuePatchLocally(id, {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
     } catch (error) {
       console.error("Failed to update issue:", error);
-      setIssues(previousIssues);
-      setSelectedIssue(previousSelected);
     }
   };
 
   const markIssueAsRead = useCallback(async (id: number) => {
-    const previousIssues = [...issues];
-    const previousSelected = selectedIssue;
-
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === id ? { ...issue, isRead: true } : issue
-      )
-    );
-
-    if (selectedIssue?.id === id) {
-      setSelectedIssue((prev) => prev ? { ...prev, isRead: true } : null);
-    }
-
     try {
       const res = await fetch(`/api/feedback/${id}`, {
         method: "PATCH",
@@ -190,10 +482,8 @@ export default function FeedbackPage() {
       }
     } catch (error) {
       console.error("Failed to mark issue as read:", error);
-      setIssues(previousIssues);
-      setSelectedIssue(previousSelected);
     }
-  }, [issues, selectedIssue]);
+  }, []);
 
   const handleSelectIssue = (issue: FeedbackItem) => {
     // If clicking the same card, dismiss the panel
@@ -201,23 +491,24 @@ export default function FeedbackPage() {
       handleCloseDetail();
     } else {
       if (!issue.isRead) {
+        applyIssuePatchLocally(issue.id, { isRead: true });
         void markIssueAsRead(issue.id);
       }
       setSelectedIssue(issue.isRead ? issue : { ...issue, isRead: true });
     }
   };
 
-  // Filter issues client-side for search (in addition to server-side)
-  const filteredIssues = issues.filter((issue) => {
-    if (filters.search && !issue.description.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
-  const unreadCount = filteredIssues.reduce(
+  const currentIssues = view === "list"
+    ? listIssues
+    : KANBAN_STATUSES.flatMap((status) => kanbanIssuesByStatus[status]);
+  const unreadCount = currentIssues.reduce(
     (count, issue) => count + (issue.isRead ? 0 : 1),
     0
   );
+  const isLoading = view === "list" ? isListLoading : isKanbanLoading;
+  const isRefreshBusy = view === "list"
+    ? isListLoading || isListLoadingMore
+    : isKanbanLoading;
 
   return (
     <div className="p-8">
@@ -243,12 +534,12 @@ export default function FeedbackPage() {
         onFiltersChange={setFilters}
         view={view}
         onViewChange={setView}
-        onRefresh={fetchIssues}
-        isLoading={isLoading}
+        onRefresh={handleRefresh}
+        isLoading={isRefreshBusy}
       />
 
       {/* Content */}
-      {isLoading && issues.length === 0 ? (
+      {isLoading && currentIssues.length === 0 ? (
         <div className="text-center py-12 text-[hsl(var(--muted-foreground))]">
           Loading...
         </div>
@@ -258,22 +549,38 @@ export default function FeedbackPage() {
           <div className="flex-1 min-w-0">
             {view === "kanban" ? (
               <KanbanBoard
-                issues={filteredIssues}
+                issuesByStatus={kanbanIssuesByStatus}
+                hasMoreByStatus={{
+                  open: kanbanPagination.open.hasMore,
+                  in_progress: kanbanPagination.in_progress.hasMore,
+                  resolved: kanbanPagination.resolved.hasMore,
+                  closed: kanbanPagination.closed.hasMore,
+                }}
+                isLoadingByStatus={{
+                  open: kanbanPagination.open.isLoading,
+                  in_progress: kanbanPagination.in_progress.isLoading,
+                  resolved: kanbanPagination.resolved.isLoading,
+                  closed: kanbanPagination.closed.isLoading,
+                }}
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}
+                onLoadMore={loadMoreKanbanStatus}
               />
             ) : (
               <ListView
-                issues={filteredIssues}
+                issues={listIssues}
+                hasMore={listHasMore}
+                isLoadingMore={isListLoadingMore}
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}
                 onUpdatePriority={handleUpdatePriority}
+                onLoadMore={loadMoreList}
               />
             )}
 
-            {filteredIssues.length === 0 && !isLoading && (
+            {currentIssues.length === 0 && !isLoading && (
               <div className="text-center py-12 text-[hsl(var(--muted-foreground))]">
                 No issues found matching your filters
               </div>

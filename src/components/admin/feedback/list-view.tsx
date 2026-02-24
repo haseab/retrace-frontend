@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FeedbackItem, FeedbackStatus, FeedbackPriority, STATUS_CONFIG, PRIORITY_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
 
 type SortField = "id" | "type" | "status" | "priority" | "createdAt";
@@ -8,15 +8,56 @@ type SortDirection = "asc" | "desc";
 
 interface ListViewProps {
   issues: FeedbackItem[];
+  hasMore: boolean;
+  isLoadingMore: boolean;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
   onUpdatePriority: (id: number, priority: FeedbackPriority) => Promise<void>;
+  onLoadMore: () => void;
 }
 
-export function ListView({ issues, selectedId, onSelect, onUpdateStatus, onUpdatePriority }: ListViewProps) {
+export function ListView({
+  issues,
+  hasMore,
+  isLoadingMore,
+  selectedId,
+  onSelect,
+  onUpdateStatus,
+  onUpdatePriority,
+  onLoadMore,
+}: ListViewProps) {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!hasMore || isLoadingMore) {
+      return;
+    }
+
+    const target = loadMoreRef.current;
+    if (!target) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "240px 0px",
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, onLoadMore, issues.length]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -147,6 +188,14 @@ export function ListView({ issues, selectedId, onSelect, onUpdateStatus, onUpdat
       {issues.length === 0 && (
         <div className="text-center py-12 text-[hsl(var(--muted-foreground))]">
           No issues found
+        </div>
+      )}
+      {issues.length > 0 && (
+        <div
+          ref={loadMoreRef}
+          className="py-3 text-center text-xs text-[hsl(var(--muted-foreground))]"
+        >
+          {isLoadingMore ? "Loading more..." : hasMore ? "Scroll for more" : "End of results"}
         </div>
       )}
     </div>

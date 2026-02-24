@@ -256,34 +256,61 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const priority = searchParams.get("priority");
     const search = searchParams.get("search");
+    const limitParam = searchParams.get("limit");
+    const offsetParam = searchParams.get("offset");
+
+    const parsedLimit = limitParam === null ? null : Number(limitParam);
+    const parsedOffset = offsetParam === null ? 0 : Number(offsetParam);
+    const limit = parsedLimit === null || Number.isNaN(parsedLimit)
+      ? null
+      : Math.min(100, Math.max(1, Math.trunc(parsedLimit)));
+    const offset = Number.isNaN(parsedOffset)
+      ? 0
+      : Math.max(0, Math.trunc(parsedOffset));
 
     // Build query dynamically
-    let sql = "SELECT * FROM feedback WHERE 1=1";
+    const whereClauses: string[] = ["1=1"];
     const args: (string | number)[] = [];
 
     if (type && type !== "all") {
-      sql += " AND type = ?";
+      whereClauses.push("type = ?");
       args.push(type);
     }
 
     if (status && status !== "all") {
-      sql += " AND status = ?";
+      whereClauses.push("status = ?");
       args.push(status);
     }
 
     if (priority && priority !== "all") {
-      sql += " AND priority = ?";
+      whereClauses.push("priority = ?");
       args.push(priority);
     }
 
     if (search && search.trim()) {
-      sql += " AND description LIKE ?";
+      whereClauses.push("description LIKE ?");
       args.push(`%${search.trim()}%`);
     }
 
-    sql += " ORDER BY updated_at DESC";
+    const whereSql = whereClauses.join(" AND ");
 
-    const result = await db.execute({ sql, args });
+    const countResult = await db.execute({
+      sql: `SELECT COUNT(*) AS total FROM feedback WHERE ${whereSql}`,
+      args,
+    });
+    const totalRaw = countResult.rows[0]?.total;
+    const parsedTotal = typeof totalRaw === "number" ? totalRaw : Number(totalRaw ?? 0);
+    const total = Number.isFinite(parsedTotal) ? Math.max(0, Math.trunc(parsedTotal)) : 0;
+
+    let sql = `SELECT * FROM feedback WHERE ${whereSql} ORDER BY updated_at DESC`;
+    const queryArgs: (string | number)[] = [...args];
+
+    if (limit !== null) {
+      sql += " LIMIT ? OFFSET ?";
+      queryArgs.push(limit, offset);
+    }
+
+    const result = await db.execute({ sql, args: queryArgs });
     const feedbackRows = result.rows as Record<string, unknown>[];
 
     const feedbackIds = feedbackRows
@@ -291,9 +318,15 @@ export async function GET(request: NextRequest) {
       .filter((id): id is number => id !== null);
 
     const normalizedDiagnosticsById = await getNormalizedDiagnosticsByFeedbackIds(db, feedbackIds);
+    const returnedCount = feedbackRows.length;
+    const hasMore = limit !== null && offset + returnedCount < total;
 
     return NextResponse.json({
-      count: feedbackRows.length,
+      count: returnedCount,
+      total,
+      hasMore,
+      offset: limit === null ? 0 : offset,
+      limit: limit ?? returnedCount,
       feedback: feedbackRows.map((row) => {
         const feedbackId = toFeedbackId(row.id);
         const diagnostics = feedbackId === null ? undefined : normalizedDiagnosticsById.get(feedbackId);

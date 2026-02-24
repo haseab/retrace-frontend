@@ -110,6 +110,10 @@ export interface FeedbackFilters {
 
 export interface FeedbackResponse {
   count: number;
+  total: number;
+  hasMore: boolean;
+  offset: number;
+  limit: number;
   feedback: FeedbackItem[];
 }
 
