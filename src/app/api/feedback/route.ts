@@ -52,6 +52,10 @@ interface FeedbackSubmission {
 // Ensure table exists on first request
 let initialized = false;
 
+function elapsedMs(startedAt: number): number {
+  return Date.now() - startedAt;
+}
+
 function toFeedbackId(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) {
@@ -75,14 +79,37 @@ function getDisplayCount(displayInfo: FeedbackDisplayInfo | undefined): number {
 }
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now();
+  const traceId = `${requestStartedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+  console.log(`[feedback][POST][${traceId}] start`, {
+    contentLength: request.headers.get("content-length") ?? "unknown",
+    contentType: request.headers.get("content-type") ?? "unknown",
+  });
+
   try {
     // Initialize database on first request
     if (!initialized) {
+      const initStartedAt = Date.now();
       await initDatabase();
       initialized = true;
+      console.log(`[feedback][POST][${traceId}] initDatabase complete`, {
+        initMs: elapsedMs(initStartedAt),
+      });
     }
 
+    const parseStartedAt = Date.now();
     const body: FeedbackSubmission = await request.json();
+    console.log(`[feedback][POST][${traceId}] parsed request body`, {
+      parseMs: elapsedMs(parseStartedAt),
+      descriptionChars: body.description?.length ?? 0,
+      recentLogsCount: body.diagnostics?.recentLogs?.length ?? 0,
+      recentErrorsCount: body.diagnostics?.recentErrors?.length ?? 0,
+      settingsCount: body.diagnostics?.settingsSnapshot
+        ? Object.keys(body.diagnostics.settingsSnapshot).length
+        : 0,
+      crashReportsCount: body.diagnostics?.emergencyCrashReports?.length ?? 0,
+    });
 
     // Validate required fields
     if (!body.type || !body.description || !body.diagnostics) {
@@ -113,6 +140,7 @@ export async function POST(request: NextRequest) {
     const displayCount = getDisplayCount(body.diagnostics.displayInfo);
 
     // Insert into Turso database with diagnostics fields
+    const insertFeedbackStartedAt = Date.now();
     const result = await db.execute({
       sql: `
         INSERT INTO feedback (
@@ -157,12 +185,19 @@ export async function POST(request: NextRequest) {
         body.screenshotData ? Buffer.from(body.screenshotData, "base64") : null,
       ],
     });
+    console.log(`[feedback][POST][${traceId}] inserted feedback row`, {
+      insertFeedbackMs: elapsedMs(insertFeedbackStartedAt),
+      rowId: result.lastInsertRowid?.toString() ?? "unknown",
+      displayCount,
+      includeScreenshot: Boolean(body.includeScreenshot && body.screenshotData),
+    });
 
     const feedbackId = toFeedbackId(result.lastInsertRowid);
     if (feedbackId === null) {
       throw new Error("Failed to determine inserted feedback id");
     }
 
+    const diagnosticsWriteStartedAt = Date.now();
     await upsertFeedbackDiagnostics(db, feedbackId, {
       settingsSnapshot: body.diagnostics.settingsSnapshot || {},
       recentErrors: body.diagnostics.recentErrors || [],
@@ -172,12 +207,22 @@ export async function POST(request: NextRequest) {
       accessibilityInfo: body.diagnostics.accessibilityInfo || DEFAULT_ACCESSIBILITY_INFO,
       performanceInfo: body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO,
       emergencyCrashReports: body.diagnostics.emergencyCrashReports || [],
+    }, {
+      traceId,
+      logTimings: true,
+    });
+    console.log(`[feedback][POST][${traceId}] diagnostics persisted`, {
+      diagnosticsWriteMs: elapsedMs(diagnosticsWriteStartedAt),
     });
 
     console.log("Feedback saved to Turso:", {
       id: feedbackId,
       type: body.type,
       appVersion: body.diagnostics.appVersion,
+    });
+    console.log(`[feedback][POST][${traceId}] success`, {
+      totalMs: elapsedMs(requestStartedAt),
+      feedbackId,
     });
 
     return NextResponse.json({
@@ -186,7 +231,10 @@ export async function POST(request: NextRequest) {
       id: feedbackId.toString(),
     });
   } catch (error) {
-    console.error("Error processing feedback:", error);
+    console.error(`[feedback][POST][${traceId}] failed`, {
+      totalMs: elapsedMs(requestStartedAt),
+      error,
+    });
     return NextResponse.json(
       { error: "Failed to process feedback submission" },
       { status: 500 }

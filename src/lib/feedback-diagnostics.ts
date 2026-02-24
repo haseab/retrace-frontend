@@ -69,6 +69,8 @@ export interface UpsertFeedbackDiagnosticsOptions {
   writeSettings?: boolean;
   writeCrashReports?: boolean;
   writeLogEntries?: boolean;
+  traceId?: string;
+  logTimings?: boolean;
 }
 
 export interface FeedbackApiItem {
@@ -421,6 +423,59 @@ function uniqueFeedbackIds(feedbackIds: number[]): number[] {
   );
 }
 
+function chunkArray<T>(values: T[], chunkSize: number): T[][] {
+  if (chunkSize <= 0) {
+    return [values];
+  }
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+interface FeedbackLogInsertRow {
+  level: "log" | "error";
+  entryIndex: number;
+  message: string;
+}
+
+const MAX_SQLITE_PARAMETERS_PER_STATEMENT = 900;
+const LOG_ENTRY_COLUMNS_PER_ROW = 4;
+const MAX_LOG_ROWS_PER_INSERT = Math.max(
+  1,
+  Math.floor(MAX_SQLITE_PARAMETERS_PER_STATEMENT / LOG_ENTRY_COLUMNS_PER_ROW)
+);
+
+async function insertFeedbackLogEntries(
+  database: Client,
+  feedbackId: number,
+  rows: FeedbackLogInsertRow[]
+): Promise<number> {
+  let statementCount = 0;
+
+  for (const chunk of chunkArray(rows, MAX_LOG_ROWS_PER_INSERT)) {
+    const valuesSql = chunk.map(() => "(?, ?, ?, ?)").join(", ");
+    const args: (number | string)[] = [];
+
+    for (const row of chunk) {
+      args.push(feedbackId, row.level, row.entryIndex, row.message);
+    }
+
+    await database.execute({
+      sql: `
+        INSERT INTO feedback_log_entries (feedback_id, level, entry_index, message)
+        VALUES ${valuesSql}
+      `,
+      args,
+    });
+    statementCount += 1;
+  }
+
+  return statementCount;
+}
+
 export async function ensureFeedbackDiagnosticsTables(database: Client): Promise<void> {
   await database.execute(`
     CREATE TABLE IF NOT EXISTS feedback_performance (
@@ -551,6 +606,7 @@ export async function upsertFeedbackDiagnostics(
   diagnostics: FeedbackDiagnosticsPayload,
   options: UpsertFeedbackDiagnosticsOptions = {}
 ): Promise<{ displayCount: number }> {
+  const totalStartedAt = Date.now();
   const writePerformance = options.writePerformance ?? true;
   const writeProcess = options.writeProcess ?? true;
   const writeAccessibility = options.writeAccessibility ?? true;
@@ -558,6 +614,9 @@ export async function upsertFeedbackDiagnostics(
   const writeSettings = options.writeSettings ?? true;
   const writeCrashReports = options.writeCrashReports ?? true;
   const writeLogEntries = options.writeLogEntries ?? true;
+  const shouldLogTimings = options.logTimings ?? false;
+  const traceId = options.traceId ?? `feedback-${feedbackId}`;
+  const stageTimings: Record<string, number> = {};
 
   const normalizedDisplayInfo = normalizeDisplayInfo(diagnostics.displayInfo);
   const normalizedProcessInfo = normalizeProcessInfo(diagnostics.processInfo);
@@ -574,6 +633,7 @@ export async function upsertFeedbackDiagnostics(
   );
 
   if (writePerformance) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: `
         INSERT INTO feedback_performance (
@@ -608,9 +668,11 @@ export async function upsertFeedbackDiagnostics(
         normalizedPerformanceInfo.batteryLevel,
       ],
     });
+    stageTimings.performanceMs = Date.now() - stageStartedAt;
   }
 
   if (writeProcess) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: `
         INSERT INTO feedback_process (
@@ -640,9 +702,11 @@ export async function upsertFeedbackDiagnostics(
         normalizedProcessInfo.windowServerCPU,
       ],
     });
+    stageTimings.processMs = Date.now() - stageStartedAt;
   }
 
   if (writeAccessibility) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: `
         INSERT INTO feedback_accessibility (
@@ -671,9 +735,11 @@ export async function upsertFeedbackDiagnostics(
         normalizedAccessibilityInfo.displayHasInvertedColors ? 1 : 0,
       ],
     });
+    stageTimings.accessibilityMs = Date.now() - stageStartedAt;
   }
 
   if (writeDisplays) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: "DELETE FROM feedback_displays WHERE feedback_id = ?",
       args: [feedbackId],
@@ -702,9 +768,11 @@ export async function upsertFeedbackDiagnostics(
         ],
       });
     }
+    stageTimings.displaysMs = Date.now() - stageStartedAt;
   }
 
   if (writeSettings) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: "DELETE FROM feedback_settings WHERE feedback_id = ?",
       args: [feedbackId],
@@ -723,9 +791,11 @@ export async function upsertFeedbackDiagnostics(
         args: [feedbackId, settingKey, settingValue],
       });
     }
+    stageTimings.settingsMs = Date.now() - stageStartedAt;
   }
 
   if (writeCrashReports) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: "DELETE FROM feedback_crash_reports WHERE feedback_id = ?",
       args: [feedbackId],
@@ -740,39 +810,74 @@ export async function upsertFeedbackDiagnostics(
         args: [feedbackId, index, normalizedCrashReports[index]],
       });
     }
+    stageTimings.crashReportsMs = Date.now() - stageStartedAt;
   }
 
   if (writeLogEntries) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: "DELETE FROM feedback_log_entries WHERE feedback_id = ?",
       args: [feedbackId],
     });
 
+    const logEntryRows: FeedbackLogInsertRow[] = [];
+
     for (let index = 0; index < normalizedRecentLogs.length; index += 1) {
-      await database.execute({
-        sql: `
-          INSERT INTO feedback_log_entries (feedback_id, level, entry_index, message)
-          VALUES (?, 'log', ?, ?)
-        `,
-        args: [feedbackId, index, normalizedRecentLogs[index]],
+      logEntryRows.push({
+        level: "log",
+        entryIndex: index,
+        message: normalizedRecentLogs[index],
       });
     }
 
     for (let index = 0; index < normalizedRecentErrors.length; index += 1) {
-      await database.execute({
-        sql: `
-          INSERT INTO feedback_log_entries (feedback_id, level, entry_index, message)
-          VALUES (?, 'error', ?, ?)
-        `,
-        args: [feedbackId, index, normalizedRecentErrors[index]],
+      logEntryRows.push({
+        level: "error",
+        entryIndex: index,
+        message: normalizedRecentErrors[index],
       });
     }
+
+    const logEntryInsertStatements = await insertFeedbackLogEntries(
+      database,
+      feedbackId,
+      logEntryRows
+    );
+
+    stageTimings.logEntryInsertStatements = logEntryInsertStatements;
+    stageTimings.logEntriesMs = Date.now() - stageStartedAt;
   }
 
   if (writeDisplays) {
+    const stageStartedAt = Date.now();
     await database.execute({
       sql: "UPDATE feedback SET display_count = ? WHERE id = ?",
       args: [displayCount, feedbackId],
+    });
+    stageTimings.displayCountUpdateMs = Date.now() - stageStartedAt;
+  }
+
+  if (shouldLogTimings) {
+    console.log(`[feedback][diagnostics][${traceId}] upsert complete`, {
+      feedbackId,
+      totalMs: Date.now() - totalStartedAt,
+      counts: {
+        settings: normalizedSettingsSnapshot ? Object.keys(normalizedSettingsSnapshot).length : 0,
+        displays: normalizedDisplayInfo.displays.length,
+        crashReports: normalizedCrashReports.length,
+        recentLogs: normalizedRecentLogs.length,
+        recentErrors: normalizedRecentErrors.length,
+      },
+      writeFlags: {
+        writePerformance,
+        writeProcess,
+        writeAccessibility,
+        writeDisplays,
+        writeSettings,
+        writeCrashReports,
+        writeLogEntries,
+      },
+      stageTimings,
     });
   }
 
