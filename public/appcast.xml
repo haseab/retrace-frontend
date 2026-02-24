@@ -10,6 +10,56 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.7.5</title>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>0.7.5</sparkle:shortVersionString>
+            <pubDate>Tue, 24 Feb 2026 20:14:12 +0000</pubDate>
+            <description><![CDATA[
+<h2>Retrace v<VERSION></h2>
+<p>This release focuses on reliability, privacy controls, and major timeline upgrades.</p>
+
+<h3>New in Timeline</h3>
+<ul>
+  <li><strong>Segment comments with attachments:</strong> Add long-form markdown comments to timeline blocks, attach files, and view full comment threads directly in timeline.</li>
+  <li><strong>Tag color indicators:</strong> Timeline tape now shows tag colors for faster visual scanning.</li>
+  <li><strong>Scroll orientation option:</strong> Choose horizontal (left/right) or vertical (up/down) scrubbing behavior in Settings.</li>
+</ul>
+
+<h3>Privacy Improvements</h3>
+<ul>
+  <li><strong>Frame redaction pipeline:</strong> Add window-title and browser-URL redaction rules in Settings. Matching frames are masked at capture time.</li>
+  <li><strong>Redaction transparency:</strong> Timeline now surfaces redaction reasons so it’s clear why a frame is masked.</li>
+</ul>
+
+<h3>Power & OCR Controls</h3>
+<ul>
+  <li><strong>Expanded OCR power settings:</strong> Pause OCR, process only when plugged in, pause OCR in Low Power Mode, tune OCR priority, and filter OCR by app.</li>
+  <li><strong>System Monitor updates:</strong> Better visibility into OCR queue and processing behavior.</li>
+</ul>
+
+<h3>Capture & Stability</h3>
+<ul>
+  <li><strong>More robust URL capture:</strong> Hardened browser URL extraction pipeline with safer subprocess handling, timeouts, and retries.</li>
+  <li><strong>Smoother frame transitions:</strong> Improved reliability around active-window changes.</li>
+  <li><strong>Reduced UI stalls/encoder aborts:</strong> Main-thread and encoder-path hardening for steadier long-running capture sessions.</li>
+  <li><strong>Timed pause controls:</strong> Pause capture for 5/30/60 minutes with auto-resume countdown in menu bar.</li>
+</ul>
+
+<h3>Setup & Release Quality</h3>
+<ul>
+  <li><strong>Onboarding:</strong> Added app URL permission preflight to improve first-run reliability.</li>
+  <li><strong>Release guardrails:</strong> Added stricter preflight checks and sleep/wake validation tooling for safer releases.</li>
+  <li><strong>Test suite cleanup:</strong> Internal test reliability improvements.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.7.5.dmg"
+                sparkle:edSignature="nSST4wxVxCFukEFNkjwtieJT+LscWujCPsORBw4a9a5mogLS8R+tJwb9zB9uABaVnjMTJL+qcTdKPp9rJI/xAw=="
+                length="9501067"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.7.0</title>
             <sparkle:version>6</sparkle:version>
             <sparkle:shortVersionString>0.7.0</sparkle:shortVersionString>
