@@ -11,6 +11,7 @@ import {
 import { motion } from "framer-motion";
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
+import { apiFetch } from "@/lib/client-api";
 
 const LATEST_VERSION = "1.0.0";
 
@@ -39,7 +40,7 @@ export function HeroBase({
 
     try {
       // Track download and get download URL
-      const response = await fetch("/api/downloads/track", {
+      const response = await apiFetch("/api/downloads/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

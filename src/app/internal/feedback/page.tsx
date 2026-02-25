@@ -1,15 +1,28 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { FeedbackItem, FeedbackFilters, FeedbackStatus, FeedbackPriority, ViewMode, FeedbackResponse } from "@/lib/types/feedback";
+import { useState, useEffect, useCallback, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  FeedbackItem,
+  FeedbackFilters,
+  FeedbackStatus,
+  FeedbackPriority,
+  ViewMode,
+  FeedbackResponse,
+  FeedbackSummaryItem,
+  hydrateFeedbackSummary,
+} from "@/lib/types/feedback";
 import { FiltersBar } from "@/components/admin/feedback/filters-bar";
 import { KanbanBoard } from "@/components/admin/feedback/kanban-board";
 import { ListView } from "@/components/admin/feedback/list-view";
 import { IssueDetail } from "@/components/admin/feedback/issue-detail";
+import { CreateIssueForm } from "@/components/admin/feedback/create-issue-form";
+import { authFetch } from "@/lib/client-api";
 
-const KANBAN_STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "resolved", "closed"];
+const KANBAN_STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"];
 const KANBAN_PAGE_SIZE = 10;
 const LIST_PAGE_SIZE = 30;
+const MIN_DETAIL_PANEL_WIDTH = 400;
+const DETAIL_PANEL_WIDTH_STORAGE_KEY = "internal_feedback_detail_panel_width_v1";
 
 interface ColumnPaginationState {
   hasMore: boolean;
@@ -28,8 +41,10 @@ function createEmptyIssuesByStatus(): Record<FeedbackStatus, FeedbackItem[]> {
     open: [],
     in_progress: [],
     to_notify: [],
+    notified: [],
     resolved: [],
     closed: [],
+    back_burner: [],
   };
 }
 
@@ -38,8 +53,10 @@ function createEmptyColumnPagination(): Record<FeedbackStatus, ColumnPaginationS
     open: { hasMore: false, isLoading: false },
     in_progress: { hasMore: false, isLoading: false },
     to_notify: { hasMore: false, isLoading: false },
+    notified: { hasMore: false, isLoading: false },
     resolved: { hasMore: false, isLoading: false },
     closed: { hasMore: false, isLoading: false },
+    back_burner: { hasMore: false, isLoading: false },
   };
 }
 
@@ -57,6 +74,10 @@ function appendUniqueIssues(existing: FeedbackItem[], incoming: FeedbackItem[]):
   return [...existing, ...nextItems];
 }
 
+function hydrateFeedbackItems(items: FeedbackSummaryItem[]): FeedbackItem[] {
+  return items.map((item) => hydrateFeedbackSummary(item));
+}
+
 export default function FeedbackPage() {
   const [listIssues, setListIssues] = useState<FeedbackItem[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
@@ -72,8 +93,13 @@ export default function FeedbackPage() {
   const [isKanbanLoading, setIsKanbanLoading] = useState(true);
 
   const [selectedIssue, setSelectedIssue] = useState<FeedbackItem | null>(null);
+  const [issueDetailsById, setIssueDetailsById] = useState<Record<number, FeedbackItem>>({});
+  const [detailLoadingIssueId, setDetailLoadingIssueId] = useState<number | null>(null);
+  const [logsLoadingIssueId, setLogsLoadingIssueId] = useState<number | null>(null);
   const [isDetailClosing, setIsDetailClosing] = useState(false);
+  const [detailPanelWidth, setDetailPanelWidth] = useState(MIN_DETAIL_PANEL_WIDTH);
   const [view, setView] = useState<ViewMode>("kanban");
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [filters, setFilters] = useState<FeedbackFilters>({
     type: "all",
     status: "all",
@@ -87,10 +113,131 @@ export default function FeedbackPage() {
     open: false,
     in_progress: false,
     to_notify: false,
+    notified: false,
     resolved: false,
     closed: false,
+    back_burner: false,
   });
   const statusMutationVersionRef = useRef<Record<number, number>>({});
+  const detailResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
+  const detailPrefetchPromisesRef = useRef<Map<number, Promise<FeedbackItem>>>(new Map());
+  const logsFetchPromisesRef = useRef<Map<number, Promise<FeedbackItem>>>(new Map());
+  const detailLoadedRef = useRef<Set<number>>(new Set());
+  const recentLogsLoadedRef = useRef<Set<number>>(new Set());
+  const hasSkippedInitialDetailPersistRef = useRef(false);
+
+  const getMaxDetailPanelWidth = useCallback(() => {
+    if (typeof window === "undefined") {
+      return 960;
+    }
+
+    // Keep enough horizontal room for board/list content while allowing wider detail views.
+    return Math.max(MIN_DETAIL_PANEL_WIDTH, Math.floor(window.innerWidth - 360));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let savedWidth: number;
+    try {
+      savedWidth = Number(window.localStorage.getItem(DETAIL_PANEL_WIDTH_STORAGE_KEY));
+    } catch {
+      return;
+    }
+
+    if (!Number.isFinite(savedWidth)) {
+      return;
+    }
+
+    const clampedWidth = Math.max(
+      MIN_DETAIL_PANEL_WIDTH,
+      Math.min(getMaxDetailPanelWidth(), Math.round(savedWidth))
+    );
+    setDetailPanelWidth(clampedWidth);
+  }, [getMaxDetailPanelWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    // Avoid clobbering restored widths with the initial default on mount.
+    if (!hasSkippedInitialDetailPersistRef.current) {
+      hasSkippedInitialDetailPersistRef.current = true;
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(DETAIL_PANEL_WIDTH_STORAGE_KEY, String(Math.round(detailPanelWidth)));
+    } catch {
+      // Ignore storage write failures (e.g., strict privacy mode).
+    }
+  }, [detailPanelWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleWindowResize = () => {
+      const maxWidth = getMaxDetailPanelWidth();
+      setDetailPanelWidth((prev) => Math.max(MIN_DETAIL_PANEL_WIDTH, Math.min(prev, maxWidth)));
+    };
+
+    window.addEventListener("resize", handleWindowResize);
+    return () => window.removeEventListener("resize", handleWindowResize);
+  }, [getMaxDetailPanelWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!detailResizeStateRef.current) {
+        return;
+      }
+
+      const { startX, startWidth } = detailResizeStateRef.current;
+      const delta = startX - event.clientX;
+      const nextWidth = Math.max(
+        MIN_DETAIL_PANEL_WIDTH,
+        Math.min(getMaxDetailPanelWidth(), Math.round(startWidth + delta))
+      );
+      setDetailPanelWidth(nextWidth);
+    };
+
+    const stopResize = () => {
+      if (!detailResizeStateRef.current) {
+        return;
+      }
+      detailResizeStateRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopResize);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopResize);
+      if (detailResizeStateRef.current) {
+        detailResizeStateRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    };
+  }, [getMaxDetailPanelWidth]);
+
+  const handleStartDetailResize = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    detailResizeStateRef.current = {
+      startX: event.clientX,
+      startWidth: detailPanelWidth,
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [detailPanelWidth]);
 
   const fetchFeedbackPage = useCallback(async ({
     limit,
@@ -123,7 +270,7 @@ export default function FeedbackPage() {
     params.set("offset", offset.toString());
 
     const url = `/api/feedback?${params.toString()}`;
-    const res = await fetch(url);
+    const res = await authFetch(url);
 
     if (!res.ok) {
       throw new Error(`Failed to fetch feedback: ${res.status}`);
@@ -132,6 +279,107 @@ export default function FeedbackPage() {
     const data: FeedbackResponse = await res.json();
     return data;
   }, [filters]);
+
+  const mergeIssueDetail = useCallback((incoming: FeedbackItem, options: { includeRecentLogs: boolean }) => {
+    const { includeRecentLogs } = options;
+
+    setIssueDetailsById((prev) => {
+      const existing = prev[incoming.id];
+      const shouldPreserveExistingLogs = Boolean(existing && !includeRecentLogs && recentLogsLoadedRef.current.has(incoming.id));
+      const recentLogs = shouldPreserveExistingLogs ? existing.recentLogs : incoming.recentLogs;
+      const recentErrors = existing && !includeRecentLogs && incoming.recentErrors.length === 0
+        ? existing.recentErrors
+        : incoming.recentErrors;
+
+      const merged: FeedbackItem = {
+        ...(existing ?? incoming),
+        ...incoming,
+        recentLogs,
+        recentErrors,
+      };
+
+      return {
+        ...prev,
+        [incoming.id]: merged,
+      };
+    });
+
+    setSelectedIssue((prev) => {
+      if (!prev || prev.id !== incoming.id) {
+        return prev;
+      }
+
+      const shouldPreserveSelectedLogs = !includeRecentLogs && recentLogsLoadedRef.current.has(incoming.id);
+      const recentLogs = shouldPreserveSelectedLogs ? prev.recentLogs : incoming.recentLogs;
+      const recentErrors = !includeRecentLogs && incoming.recentErrors.length === 0
+        ? prev.recentErrors
+        : incoming.recentErrors;
+
+      return {
+        ...prev,
+        ...incoming,
+        recentLogs,
+        recentErrors,
+      };
+    });
+  }, []);
+
+  const fetchIssueDetail = useCallback(async (id: number, includeRecentLogs: boolean): Promise<FeedbackItem> => {
+    const params = new URLSearchParams();
+    if (includeRecentLogs) {
+      params.set("includeRecentLogs", "true");
+    }
+
+    const query = params.toString();
+    const url = query.length > 0
+      ? `/api/feedback/${id}?${query}`
+      : `/api/feedback/${id}`;
+
+    const res = await authFetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch issue detail ${id}: ${res.status}`);
+    }
+
+    const data = await res.json() as { feedback?: FeedbackItem };
+    if (!data.feedback) {
+      throw new Error(`Missing issue detail payload for issue ${id}`);
+    }
+
+    return data.feedback;
+  }, []);
+
+  const fetchAndCacheIssueDetail = useCallback((id: number, includeRecentLogs: boolean): Promise<FeedbackItem> => {
+    const promiseMap = includeRecentLogs ? logsFetchPromisesRef.current : detailPrefetchPromisesRef.current;
+    const existingPromise = promiseMap.get(id);
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    const promise = (async () => {
+      const detail = await fetchIssueDetail(id, includeRecentLogs);
+      mergeIssueDetail(detail, { includeRecentLogs });
+      detailLoadedRef.current.add(id);
+      if (includeRecentLogs) {
+        recentLogsLoadedRef.current.add(id);
+      }
+      return detail;
+    })().finally(() => {
+      promiseMap.delete(id);
+    });
+
+    promiseMap.set(id, promise);
+    return promise;
+  }, [fetchIssueDetail, mergeIssueDetail]);
+
+  const prefetchIssueDetailOnHover = useCallback((id: number) => {
+    if (detailLoadedRef.current.has(id) || recentLogsLoadedRef.current.has(id)) {
+      return;
+    }
+
+    void fetchAndCacheIssueDetail(id, false).catch((error) => {
+      console.error(`Failed to prefetch issue detail for ${id}:`, error);
+    });
+  }, [fetchAndCacheIssueDetail]);
 
   const loadInitialList = useCallback(async () => {
     const queryToken = ++activeQueryRef.current;
@@ -152,7 +400,7 @@ export default function FeedbackPage() {
         return;
       }
 
-      setListIssues(data.feedback || []);
+      setListIssues(hydrateFeedbackItems(data.feedback || []));
       setListHasMore(data.hasMore);
     } catch (error) {
       console.error("Failed to fetch list issues:", error);
@@ -183,7 +431,7 @@ export default function FeedbackPage() {
         return;
       }
 
-      setListIssues((prev) => appendUniqueIssues(prev, data.feedback || []));
+      setListIssues((prev) => appendUniqueIssues(prev, hydrateFeedbackItems(data.feedback || [])));
       setListHasMore(data.hasMore);
     } catch (error) {
       console.error("Failed to load more list issues:", error);
@@ -201,8 +449,10 @@ export default function FeedbackPage() {
       open: false,
       in_progress: false,
       to_notify: false,
+      notified: false,
       resolved: false,
       closed: false,
+      back_burner: false,
     };
 
     setIsKanbanLoading(true);
@@ -211,8 +461,10 @@ export default function FeedbackPage() {
       open: { hasMore: false, isLoading: true },
       in_progress: { hasMore: false, isLoading: true },
       to_notify: { hasMore: false, isLoading: true },
+      notified: { hasMore: false, isLoading: true },
       resolved: { hasMore: false, isLoading: true },
       closed: { hasMore: false, isLoading: true },
+      back_burner: { hasMore: false, isLoading: true },
     });
 
     try {
@@ -230,7 +482,7 @@ export default function FeedbackPage() {
 
             setKanbanIssuesByStatus((prev) => ({
               ...prev,
-              [status]: data.feedback || [],
+              [status]: hydrateFeedbackItems(data.feedback || []),
             }));
             setKanbanPagination((prev) => ({
               ...prev,
@@ -292,7 +544,7 @@ export default function FeedbackPage() {
 
       setKanbanIssuesByStatus((prev) => ({
         ...prev,
-        [status]: appendUniqueIssues(prev[status], data.feedback || []),
+        [status]: appendUniqueIssues(prev[status], hydrateFeedbackItems(data.feedback || [])),
       }));
       setKanbanPagination((prev) => ({
         ...prev,
@@ -319,6 +571,8 @@ export default function FeedbackPage() {
 
   useEffect(() => {
     setSelectedIssue(null);
+    setDetailLoadingIssueId(null);
+    setLogsLoadingIssueId(null);
     if (view === "list") {
       void loadInitialList();
       return;
@@ -336,10 +590,25 @@ export default function FeedbackPage() {
     void loadInitialKanban();
   }, [view, loadInitialKanban, loadInitialList]);
 
+  const handleIssueCreated = useCallback(async () => {
+    setSelectedIssue(null);
+    setIsCreateFormOpen(false);
+
+    if (view === "list") {
+      await loadInitialList();
+      return;
+    }
+
+    await loadInitialKanban();
+  }, [view, loadInitialKanban, loadInitialList]);
+
   const handleCloseDetail = useCallback(() => {
     if (selectedIssue && !isDetailClosing) {
+      const closingIssueId = selectedIssue.id;
       setIsDetailClosing(true);
       setTimeout(() => {
+        setDetailLoadingIssueId((prev) => (prev === closingIssueId ? null : prev));
+        setLogsLoadingIssueId((prev) => (prev === closingIssueId ? null : prev));
         setSelectedIssue(null);
         setIsDetailClosing(false);
       }, 200); // Match animation duration
@@ -355,6 +624,33 @@ export default function FeedbackPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIssue, handleCloseDetail]);
+
+  // Dismiss detail panel when clicking outside of it.
+  useEffect(() => {
+    if (!selectedIssue) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (detailPanelRef.current?.contains(target)) {
+        return;
+      }
+
+      if (target instanceof Element && target.closest("[data-feedback-select-trigger=\"true\"]")) {
+        return;
+      }
+
+      handleCloseDetail();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [selectedIssue, handleCloseDetail]);
 
   const applyIssuePatchLocally = useCallback((id: number, patch: Partial<FeedbackItem>) => {
@@ -375,8 +671,10 @@ export default function FeedbackPage() {
         open: prev.open.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         in_progress: prev.in_progress.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         to_notify: prev.to_notify.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+        notified: prev.notified.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         resolved: prev.resolved.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         closed: prev.closed.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+        back_burner: prev.back_burner.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
       };
 
       if (!patch.status) {
@@ -408,10 +706,52 @@ export default function FeedbackPage() {
       return next;
     });
 
+    setIssueDetailsById((prev) => {
+      if (!prev[id]) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [id]: { ...prev[id], ...patch },
+      };
+    });
+
     setSelectedIssue((prev) => (
       prev && prev.id === id ? { ...prev, ...patch } : prev
     ));
   }, [filters.status, view]);
+
+  const removeIssueLocally = useCallback((id: number) => {
+    setListIssues((prev) => prev.filter((issue) => issue.id !== id));
+
+    setKanbanIssuesByStatus((prev) => ({
+      open: prev.open.filter((issue) => issue.id !== id),
+      in_progress: prev.in_progress.filter((issue) => issue.id !== id),
+      to_notify: prev.to_notify.filter((issue) => issue.id !== id),
+      notified: prev.notified.filter((issue) => issue.id !== id),
+      resolved: prev.resolved.filter((issue) => issue.id !== id),
+      closed: prev.closed.filter((issue) => issue.id !== id),
+      back_burner: prev.back_burner.filter((issue) => issue.id !== id),
+    }));
+
+    setIssueDetailsById((prev) => {
+      if (!prev[id]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    detailLoadedRef.current.delete(id);
+    recentLogsLoadedRef.current.delete(id);
+    detailPrefetchPromisesRef.current.delete(id);
+    logsFetchPromisesRef.current.delete(id);
+
+    setSelectedIssue((prev) => (prev?.id === id ? null : prev));
+  }, []);
 
   const handleUpdateStatus = async (id: number, status: FeedbackStatus) => {
     const previousIssueFromKanban = KANBAN_STATUSES.reduce<FeedbackItem | null>((found, columnStatus) => {
@@ -437,7 +777,7 @@ export default function FeedbackPage() {
     });
 
     try {
-      const res = await fetch(`/api/feedback/${id}`, {
+      const res = await authFetch(`/api/feedback/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -459,7 +799,7 @@ export default function FeedbackPage() {
 
   const handleUpdatePriority = async (id: number, priority: FeedbackPriority) => {
     try {
-      const res = await fetch(`/api/feedback/${id}`, {
+      const res = await authFetch(`/api/feedback/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priority }),
@@ -480,7 +820,7 @@ export default function FeedbackPage() {
 
   const handleUpdate = async (id: number, updates: { status?: FeedbackStatus; priority?: FeedbackPriority; notes?: string; tags?: string[] }) => {
     try {
-      const res = await fetch(`/api/feedback/${id}`, {
+      const res = await authFetch(`/api/feedback/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -499,9 +839,21 @@ export default function FeedbackPage() {
     }
   };
 
+  const handleDeleteIssue = async (id: number) => {
+    const res = await authFetch(`/api/feedback/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to delete issue");
+    }
+
+    removeIssueLocally(id);
+  };
+
   const markIssueAsRead = useCallback(async (id: number) => {
     try {
-      const res = await fetch(`/api/feedback/${id}`, {
+      const res = await authFetch(`/api/feedback/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isRead: true }),
@@ -515,18 +867,65 @@ export default function FeedbackPage() {
     }
   }, []);
 
-  const handleSelectIssue = (issue: FeedbackItem) => {
+  const handleSelectIssue = useCallback((issue: FeedbackItem) => {
     // If clicking the same card, dismiss the panel
     if (selectedIssue?.id === issue.id) {
       handleCloseDetail();
-    } else {
-      if (!issue.isRead) {
-        applyIssuePatchLocally(issue.id, { isRead: true });
-        void markIssueAsRead(issue.id);
-      }
-      setSelectedIssue(issue.isRead ? issue : { ...issue, isRead: true });
+      return;
     }
-  };
+
+    const cachedIssue = issueDetailsById[issue.id];
+    const mergedIssue = cachedIssue ? { ...issue, ...cachedIssue } : issue;
+
+    if (!mergedIssue.isRead) {
+      applyIssuePatchLocally(issue.id, { isRead: true });
+      void markIssueAsRead(issue.id);
+    }
+
+    setSelectedIssue(mergedIssue.isRead ? mergedIssue : { ...mergedIssue, isRead: true });
+
+    if (!detailLoadedRef.current.has(issue.id) && !recentLogsLoadedRef.current.has(issue.id)) {
+      setDetailLoadingIssueId(issue.id);
+      void fetchAndCacheIssueDetail(issue.id, false)
+        .catch((error) => {
+          console.error(`Failed to load issue detail for ${issue.id}:`, error);
+        })
+        .finally(() => {
+          setDetailLoadingIssueId((prev) => (prev === issue.id ? null : prev));
+        });
+    }
+  }, [
+    selectedIssue?.id,
+    handleCloseDetail,
+    issueDetailsById,
+    applyIssuePatchLocally,
+    markIssueAsRead,
+    fetchAndCacheIssueDetail,
+  ]);
+
+  const handleLoadRecentLogs = useCallback(async (id: number) => {
+    if (recentLogsLoadedRef.current.has(id)) {
+      return;
+    }
+
+    setLogsLoadingIssueId(id);
+    try {
+      await fetchAndCacheIssueDetail(id, true);
+    } catch (error) {
+      console.error(`Failed to load recent logs for issue ${id}:`, error);
+    } finally {
+      setLogsLoadingIssueId((prev) => (prev === id ? null : prev));
+    }
+  }, [fetchAndCacheIssueDetail]);
+
+  const selectedIssueDetail = selectedIssue ? issueDetailsById[selectedIssue.id] : null;
+  const resolvedSelectedIssue = selectedIssue && selectedIssueDetail
+    ? { ...selectedIssue, ...selectedIssueDetail }
+    : selectedIssue;
+  const selectedIssueId = resolvedSelectedIssue?.id ?? null;
+  const isSelectedIssueDetailLoading = selectedIssueId !== null && detailLoadingIssueId === selectedIssueId;
+  const isSelectedIssueLogsLoading = selectedIssueId !== null && logsLoadingIssueId === selectedIssueId;
+  const hasSelectedIssueRecentLogs = selectedIssueId !== null && recentLogsLoadedRef.current.has(selectedIssueId);
 
   const currentIssues = view === "list"
     ? listIssues
@@ -544,14 +943,22 @@ export default function FeedbackPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <MessageSquareIcon className="w-7 h-7 text-[hsl(var(--primary))]" />
-            Feedback & Issues
-          </h1>
-          <span className="px-2.5 py-1 text-xs font-semibold rounded-full border border-sky-400/40 bg-sky-500/10 text-sky-300">
-            {unreadCount} unread
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Feedback & Issues</h1>
+            <span className="px-2.5 py-1 text-xs font-semibold rounded-full border border-sky-400/40 bg-sky-500/10 text-sky-300">
+              {unreadCount} unread
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsCreateFormOpen((prev) => !prev)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <PlusIcon className="w-4 h-4" />
+            {isCreateFormOpen ? "Close Form" : "New Issue"}
+          </button>
         </div>
         <p className="text-[hsl(var(--muted-foreground))] mt-1 ml-10">
           Track and manage bug reports, feature requests, and questions
@@ -567,6 +974,15 @@ export default function FeedbackPage() {
         onRefresh={handleRefresh}
         isLoading={isRefreshBusy}
       />
+
+      {isCreateFormOpen && (
+        <div className="mb-6">
+          <CreateIssueForm
+            onCreated={handleIssueCreated}
+            onCancel={() => setIsCreateFormOpen(false)}
+          />
+        </div>
+      )}
 
       {/* Content */}
       {isLoading && currentIssues.length === 0 ? (
@@ -584,20 +1000,25 @@ export default function FeedbackPage() {
                   open: kanbanPagination.open.hasMore,
                   in_progress: kanbanPagination.in_progress.hasMore,
                   to_notify: kanbanPagination.to_notify.hasMore,
+                  notified: kanbanPagination.notified.hasMore,
                   resolved: kanbanPagination.resolved.hasMore,
                   closed: kanbanPagination.closed.hasMore,
+                  back_burner: kanbanPagination.back_burner.hasMore,
                 }}
                 isLoadingByStatus={{
                   open: kanbanPagination.open.isLoading,
                   in_progress: kanbanPagination.in_progress.isLoading,
                   to_notify: kanbanPagination.to_notify.isLoading,
+                  notified: kanbanPagination.notified.isLoading,
                   resolved: kanbanPagination.resolved.isLoading,
                   closed: kanbanPagination.closed.isLoading,
+                  back_burner: kanbanPagination.back_burner.isLoading,
                 }}
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}
                 onLoadMore={loadMoreKanbanStatus}
+                onIssueHover={prefetchIssueDetailOnHover}
               />
             ) : (
               <ListView
@@ -609,6 +1030,7 @@ export default function FeedbackPage() {
                 onUpdateStatus={handleUpdateStatus}
                 onUpdatePriority={handleUpdatePriority}
                 onLoadMore={loadMoreList}
+                onIssueHover={prefetchIssueDetailOnHover}
               />
             )}
 
@@ -621,12 +1043,31 @@ export default function FeedbackPage() {
 
           {/* Detail Panel - only show when issue is selected */}
           {selectedIssue && (
-            <div className={`w-[400px] shrink-0 ${isDetailClosing ? "animate-slide-out-right" : "animate-slide-in-right"}`}>
+            <div
+              ref={detailPanelRef}
+              className={`relative shrink-0 ${isDetailClosing ? "animate-slide-out-right" : "animate-slide-in-right"}`}
+              style={{ width: `${detailPanelWidth}px`, minWidth: `${MIN_DETAIL_PANEL_WIDTH}px` }}
+            >
+              <button
+                type="button"
+                onMouseDown={handleStartDetailResize}
+                onDoubleClick={() => setDetailPanelWidth(MIN_DETAIL_PANEL_WIDTH)}
+                className="absolute -left-3 top-0 h-full w-3 cursor-col-resize group z-10"
+                aria-label="Resize detail panel"
+                title="Drag to resize (double-click to reset)"
+              >
+                <span className="absolute left-1/2 top-1/2 h-16 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--border))] group-hover:bg-[hsl(var(--primary))] transition-colors" />
+              </button>
               <div className="sticky top-8">
                 <IssueDetail
-                  issue={selectedIssue}
+                  issue={resolvedSelectedIssue}
                   onClose={handleCloseDetail}
                   onUpdate={handleUpdate}
+                  onDelete={handleDeleteIssue}
+                  onLoadRecentLogs={handleLoadRecentLogs}
+                  isLoadingRecentLogs={isSelectedIssueLogsLoading}
+                  hasLoadedRecentLogs={hasSelectedIssueRecentLogs}
+                  isLoadingDetail={isSelectedIssueDetailLoading}
                 />
               </div>
             </div>
@@ -637,10 +1078,10 @@ export default function FeedbackPage() {
   );
 }
 
-function MessageSquareIcon({ className }: { className?: string }) {
+function PlusIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }

@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireApiBearerAuth } from "@/lib/api-auth";
+import { createApiRouteLogger } from "@/lib/api-route-logger";
 
 // Helper to safely add a column
 async function addColumn(column: string, definition: string): Promise<string> {
@@ -16,7 +18,16 @@ async function addColumn(column: string, definition: string): Promise<string> {
 }
 
 // Manual migration endpoint - call this once to add missing columns
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const logger = createApiRouteLogger("migrate.GET", { request });
+  logger.start();
+
+  const authError = requireApiBearerAuth(request);
+  if (authError) {
+    logger.warn("auth_failed", { status: authError.status });
+    return authError;
+  }
+
   const results: string[] = [];
 
   // Add tags column (simple default)
@@ -45,5 +56,9 @@ export async function GET() {
     results.push(`Failed to update is_read: ${msg}`);
   }
 
+  logger.success({
+    status: 200,
+    results,
+  });
   return NextResponse.json({ success: true, results });
 }

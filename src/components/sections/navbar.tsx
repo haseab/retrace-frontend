@@ -7,7 +7,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { handleDownloadClick } from "@/lib/track-download";
+import { WindowsDownloadDialog } from "@/components/ui/windows-download-dialog";
+import { handleDownloadClick, isWindowsMachine } from "@/lib/track-download";
 import { SITE_CONFIG } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
@@ -29,6 +30,16 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [starCount, setStarCount] = useState<number | null>(null);
+  const [showWindowsDialog, setShowWindowsDialog] = useState(false);
+
+  const handleDownload = () => {
+    if (isWindowsMachine()) {
+      setShowWindowsDialog(true);
+      return;
+    }
+
+    handleDownloadClick("navbar");
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -119,7 +130,7 @@ export function Navbar() {
                   </span>
                 )}
               </Link>
-              <Button onClick={() => handleDownloadClick("navbar")}>
+              <Button onClick={handleDownload}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
               </Button>
@@ -192,6 +203,11 @@ export function Navbar() {
             )}
           </AnimatePresence>
         </div>
+
+        <WindowsDownloadDialog
+          open={showWindowsDialog}
+          onOpenChange={setShowWindowsDialog}
+        />
       </nav>
     </TooltipProvider>
   );

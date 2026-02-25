@@ -14,6 +14,7 @@ interface KanbanColumnProps {
   onLoadMore: (status: FeedbackStatus) => void;
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
+  onIssueHover?: (issueId: number) => void;
 }
 
 export function KanbanColumn({
@@ -24,6 +25,7 @@ export function KanbanColumn({
   onLoadMore,
   selectedId,
   onSelect,
+  onIssueHover,
 }: KanbanColumnProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +114,7 @@ export function KanbanColumn({
                   isUnread={!issue.isRead}
                   isSelected={selectedId === issue.id}
                   onClick={() => onSelect(issue)}
+                  onHover={() => onIssueHover?.(issue.id)}
                 />
               </div>
             ))}
@@ -149,8 +152,10 @@ function StatusDot({ status }: { status: FeedbackStatus }) {
     open: "bg-blue-500 shadow-blue-500/50",
     in_progress: "bg-yellow-500 shadow-yellow-500/50",
     to_notify: "bg-violet-500 shadow-violet-500/50",
+    notified: "bg-cyan-500 shadow-cyan-500/50",
     resolved: "bg-green-500 shadow-green-500/50",
     closed: "bg-gray-500",
+    back_burner: "bg-orange-500 shadow-orange-500/50",
   };
 
   const shouldPulse = status === "open" || status === "in_progress";

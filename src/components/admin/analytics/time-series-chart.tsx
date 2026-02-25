@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { DownloadSeriesPoint } from "@/lib/types/feedback";
 
 interface TimeSeriesDataPoint {
   label: string;
@@ -114,21 +115,110 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
+function parseTimestamp(raw: string | undefined): Date | null {
+  if (!raw) {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  // SQLite timestamps are stored without timezone. Treat them as UTC.
+  const isoLike = trimmed.includes("T")
+    ? trimmed
+    : trimmed.includes(" ")
+      ? trimmed.replace(" ", "T")
+      : `${trimmed}T00:00:00`;
+  const withZone = /(?:Z|[+\-]\d{2}:?\d{2})$/.test(isoLike) ? isoLike : `${isoLike}Z`;
+  const parsed = new Date(withZone);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function bucketKeyByHour(date: Date): number {
+  return Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours(),
+    0,
+    0,
+    0
+  );
+}
+
+function bucketKeyByDay(date: Date): number {
+  return Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    0,
+    0,
+    0,
+    0
+  );
+}
+
+function toCount(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return Math.max(0, Math.trunc(parsed));
+}
+
+function hasAggregatedBuckets(points: DownloadSeriesPoint[]): boolean {
+  return points.some((point) => typeof point.bucket_start === "string" && point.bucket_start.length > 0);
+}
+
 // Utility function to generate hourly data for last 48 hours
-export function generateHourlyData(downloads: { created_at: string }[]): TimeSeriesDataPoint[] {
+export function generateHourlyData(downloads: DownloadSeriesPoint[]): TimeSeriesDataPoint[] {
+  if (hasAggregatedBuckets(downloads)) {
+    return downloads
+      .map((point) => {
+        const bucketDate = parseTimestamp(point.bucket_start);
+        if (!bucketDate) {
+          return null;
+        }
+
+        return {
+          label: bucketDate.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
+          count: toCount(point.count),
+          fullLabel: bucketDate.toLocaleString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            hour12: true,
+          }),
+          bucketMs: bucketDate.getTime(),
+        };
+      })
+      .filter((point): point is TimeSeriesDataPoint & { bucketMs: number } => point !== null)
+      .sort((a, b) => a.bucketMs - b.bucketMs)
+      .map(({ label, count, fullLabel }) => ({ label, count, fullLabel }));
+  }
+
+  const hourlyCounts = new Map<number, number>();
+  for (const download of downloads) {
+    const createdAt = parseTimestamp(download.created_at);
+    if (!createdAt) {
+      continue;
+    }
+
+    const key = bucketKeyByHour(createdAt);
+    hourlyCounts.set(key, (hourlyCounts.get(key) ?? 0) + 1);
+  }
+
   const now = new Date();
+  const currentHourUtc = bucketKeyByHour(now);
   const data: TimeSeriesDataPoint[] = [];
 
   for (let i = 47; i >= 0; i--) {
-    const hourStart = new Date(now);
-    hourStart.setHours(now.getHours() - i, 0, 0, 0);
-    const hourEnd = new Date(hourStart);
-    hourEnd.setHours(hourStart.getHours() + 1);
-
-    const count = downloads.filter(d => {
-      const date = new Date(d.created_at);
-      return date >= hourStart && date < hourEnd;
-    }).length;
+    const bucketUtcMs = currentHourUtc - (i * 60 * 60 * 1000);
+    const hourStart = new Date(bucketUtcMs);
+    const count = hourlyCounts.get(bucketUtcMs) ?? 0;
 
     const label = hourStart.toLocaleTimeString("en-US", { hour: "numeric", hour12: true });
     const fullLabel = hourStart.toLocaleString("en-US", {
@@ -136,7 +226,7 @@ export function generateHourlyData(downloads: { created_at: string }[]): TimeSer
       month: "short",
       day: "numeric",
       hour: "numeric",
-      hour12: true
+      hour12: true,
     });
 
     data.push({ label, count, fullLabel });
@@ -146,28 +236,58 @@ export function generateHourlyData(downloads: { created_at: string }[]): TimeSer
 }
 
 // Utility function to generate daily data for last 30 days
-export function generateDailyData(downloads: { created_at: string }[]): TimeSeriesDataPoint[] {
+export function generateDailyData(downloads: DownloadSeriesPoint[]): TimeSeriesDataPoint[] {
+  if (hasAggregatedBuckets(downloads)) {
+    return downloads
+      .map((point) => {
+        const bucketDate = parseTimestamp(point.bucket_start);
+        if (!bucketDate) {
+          return null;
+        }
+
+        return {
+          label: bucketDate.toLocaleDateString("en-US", { day: "numeric" }),
+          count: toCount(point.count),
+          fullLabel: bucketDate.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          }),
+          bucketMs: bucketDate.getTime(),
+        };
+      })
+      .filter((point): point is TimeSeriesDataPoint & { bucketMs: number } => point !== null)
+      .sort((a, b) => a.bucketMs - b.bucketMs)
+      .map(({ label, count, fullLabel }) => ({ label, count, fullLabel }));
+  }
+
+  const dailyCounts = new Map<number, number>();
+  for (const download of downloads) {
+    const createdAt = parseTimestamp(download.created_at);
+    if (!createdAt) {
+      continue;
+    }
+
+    const key = bucketKeyByDay(createdAt);
+    dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + 1);
+  }
+
   const now = new Date();
+  const todayUtc = bucketKeyByDay(now);
   const data: TimeSeriesDataPoint[] = [];
 
   for (let i = 29; i >= 0; i--) {
-    const dayStart = new Date(now);
-    dayStart.setDate(now.getDate() - i);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayStart.getDate() + 1);
-
-    const count = downloads.filter(d => {
-      const date = new Date(d.created_at);
-      return date >= dayStart && date < dayEnd;
-    }).length;
+    const bucketUtcMs = todayUtc - (i * 24 * 60 * 60 * 1000);
+    const dayStart = new Date(bucketUtcMs);
+    const count = dailyCounts.get(bucketUtcMs) ?? 0;
 
     const label = dayStart.toLocaleDateString("en-US", { day: "numeric" });
     const fullLabel = dayStart.toLocaleDateString("en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
-      year: "numeric"
+      year: "numeric",
     });
 
     data.push({ label, count, fullLabel });

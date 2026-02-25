@@ -57,8 +57,10 @@ export function FiltersBar({
           <option value="open">Open</option>
           <option value="in_progress">In Progress</option>
           <option value="to_notify">To Notify</option>
+          <option value="notified">Notified</option>
           <option value="resolved">Resolved</option>
-          <option value="closed">Closed</option>
+          <option value="closed">Cancelled</option>
+          <option value="back_burner">Back Burner</option>
         </select>
       )}
 

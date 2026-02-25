@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthGuard } from "@/components/admin/auth-guard";
+import { BearerTokenGuard } from "@/components/admin/bearer-token-guard";
 import { Sidebar } from "@/components/admin/sidebar";
 
 export const metadata: Metadata = {
@@ -14,12 +15,14 @@ export default function AdminLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-[hsl(var(--background))]">
-        <Sidebar />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      </div>
+      <BearerTokenGuard>
+        <div className="flex min-h-screen bg-[hsl(var(--background))]">
+          <Sidebar />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </div>
+      </BearerTokenGuard>
     </AuthGuard>
   );
 }

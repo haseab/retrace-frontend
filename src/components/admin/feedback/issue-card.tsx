@@ -1,19 +1,23 @@
 "use client";
 
-import { FeedbackItem, STATUS_CONFIG, PRIORITY_CONFIG, TYPE_CONFIG, getTagColor } from "@/lib/types/feedback";
+import { FeedbackItem, STATUS_CONFIG, PRIORITY_CONFIG, SOURCE_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
+import { getDisplayDescription } from "@/lib/feedback-display";
 
 interface IssueCardProps {
   issue: FeedbackItem;
   isUnread?: boolean;
   isSelected?: boolean;
   onClick?: () => void;
+  onHover?: () => void;
   compact?: boolean;
 }
 
-export function IssueCard({ issue, isUnread = false, isSelected, onClick, compact = false }: IssueCardProps) {
+export function IssueCard({ issue, isUnread = false, isSelected, onClick, onHover, compact = false }: IssueCardProps) {
   const typeConfig = TYPE_CONFIG[issue.type] || { label: issue.type, color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
   const statusConfig = STATUS_CONFIG[issue.status] || STATUS_CONFIG.open;
   const priorityConfig = PRIORITY_CONFIG[issue.priority] || PRIORITY_CONFIG.medium;
+  const sourceConfig = SOURCE_CONFIG[issue.externalSource] || SOURCE_CONFIG.app;
+  const displayDescription = getDisplayDescription(issue.description);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
@@ -27,8 +31,10 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, compac
   if (compact) {
     return (
       <div
+        data-feedback-select-trigger="true"
         onClick={onClick}
-        className={`p-3 bg-[hsl(var(--card))] rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
+        onMouseEnter={onHover}
+        className={`relative p-3 bg-[hsl(var(--card))] rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
           isSelected
             ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"
             : isUnread
@@ -36,7 +42,11 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, compac
               : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
         }`}
       >
-        <div className="flex items-center gap-2 mb-2">
+        <span className={`absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-medium rounded border ${sourceConfig.color}`}>
+          {sourceConfig.label}
+        </span>
+
+        <div className="flex items-center gap-2 mb-2 pr-16">
           {isUnread && (
             <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded border border-sky-400/40 bg-sky-500/10 text-sky-200">
               Unread
@@ -52,31 +62,14 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, compac
             </span>
           )}
         </div>
-        <p className="text-sm line-clamp-2 mb-2">{issue.description}</p>
-        {issue.tags && issue.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {issue.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className={`px-1.5 py-0.5 text-[10px] font-medium rounded border ${getTagColor(tag)}`}
-              >
-                {tag}
-              </span>
-            ))}
-            {issue.tags.length > 3 && (
-              <span className="px-1.5 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                +{issue.tags.length - 3}
-              </span>
-            )}
-          </div>
-        )}
+        <p className="text-sm line-clamp-2 mb-2">{displayDescription}</p>
         <div className="flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]">
           {issue.email ? (
             <span className="truncate min-w-0" title={issue.email}>
               {issue.email}
             </span>
           ) : (
-            <span className="text-[hsl(var(--muted-foreground))]/50">No email</span>
+            <span className="text-[hsl(var(--muted-foreground))]/50">No contact</span>
           )}
           <span className="shrink-0 ml-2">{formatDate(issue.createdAt)}</span>
         </div>
@@ -86,8 +79,10 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, compac
 
   return (
     <div
+      data-feedback-select-trigger="true"
       onClick={onClick}
-      className={`p-4 bg-[hsl(var(--card))] rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
+      onMouseEnter={onHover}
+      className={`relative p-4 bg-[hsl(var(--card))] rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
         isSelected
           ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"
           : isUnread
@@ -95,9 +90,13 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, compac
             : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
       }`}
     >
+      <span className={`absolute top-4 right-4 px-2 py-0.5 text-xs font-medium rounded border ${sourceConfig.color}`}>
+        {sourceConfig.label}
+      </span>
+
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <div className="flex items-center gap-2 mb-2 flex-wrap pr-24">
             {isUnread && (
               <span className="px-2 py-0.5 text-xs font-semibold uppercase tracking-wide rounded border border-sky-400/40 bg-sky-500/10 text-sky-200">
                 Unread
@@ -116,16 +115,8 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, compac
                 Screenshot
               </span>
             )}
-            {issue.tags && issue.tags.map((tag) => (
-              <span
-                key={tag}
-                className={`px-2 py-0.5 text-xs font-medium rounded border ${getTagColor(tag)}`}
-              >
-                {tag}
-              </span>
-            ))}
           </div>
-          <p className="text-sm line-clamp-2 mb-2">{issue.description}</p>
+          <p className="text-sm line-clamp-2 mb-2">{displayDescription}</p>
           <div className="flex items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
             <span>#{issue.id}</span>
             <span>v{issue.appVersion}</span>

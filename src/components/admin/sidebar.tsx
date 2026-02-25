@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./auth-guard";
+import { useApiToken } from "./bearer-token-guard";
+
+const RETRACE_LOGO_URL = "https://retrace.featurebase.app/_next/image?url=https%3A%2F%2F693d07fcb1cff86b762551dd.featurebase-attachments.com%2Fc%2Fstatic%2F019b1668-d610-70b7-a7cf-ecb5fb57c2f2%2Fk9zm0pb6w7.png&w=96&q=75";
 
 const navItems = [
   { href: "/internal/feedback", label: "Feedback", icon: MessageSquareIcon },
@@ -18,6 +21,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed: controlledCollapsed, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname();
   const { logout } = useAuth();
+  const { clearBearerToken, hasBearerToken } = useApiToken();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
 
   // Use controlled or internal state
@@ -38,6 +42,10 @@ export function Sidebar({ collapsed: controlledCollapsed, onCollapsedChange }: S
     localStorage.setItem("sidebar_collapsed", String(newValue));
   };
 
+  const handleClearBearerToken = () => {
+    clearBearerToken();
+  };
+
   return (
     <aside
       className={`bg-[hsl(var(--card))] border-r border-[hsl(var(--border))] min-h-screen flex flex-col transition-all duration-300 ${
@@ -46,8 +54,13 @@ export function Sidebar({ collapsed: controlledCollapsed, onCollapsedChange }: S
     >
       <div className={`p-4 border-b border-[hsl(var(--border))] flex items-center ${collapsed ? "justify-center" : "justify-between"}`}>
         <Link href="/internal" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[hsl(var(--primary))] flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-sm">R</span>
+          <div className="w-8 h-8 rounded-lg overflow-hidden bg-[hsl(var(--primary))] flex items-center justify-center flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={RETRACE_LOGO_URL}
+              alt="Retrace logo"
+              className="w-full h-full object-cover"
+            />
           </div>
           {!collapsed && <span className="font-semibold text-lg">Retrace</span>}
         </Link>
@@ -102,6 +115,19 @@ export function Sidebar({ collapsed: controlledCollapsed, onCollapsedChange }: S
       </nav>
 
       <div className="p-2 border-t border-[hsl(var(--border))]">
+        {hasBearerToken && (
+          <button
+            onClick={handleClearBearerToken}
+            className={`mb-1.5 flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-medium text-[hsl(var(--muted-foreground))] hover:text-white hover:bg-[hsl(var(--secondary))] transition-colors ${
+              collapsed ? "justify-center" : ""
+            }`}
+            title={collapsed ? "Clear Token" : undefined}
+          >
+            <KeyIcon className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && "Clear Token"}
+          </button>
+        )}
+
         <button
           onClick={logout}
           className={`flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-medium text-[hsl(var(--muted-foreground))] hover:text-white hover:bg-[hsl(var(--secondary))] transition-colors ${
@@ -198,6 +224,25 @@ function ChevronRightIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
     >
       <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
+function KeyIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="7.5" cy="15.5" r="5.5" />
+      <path d="M21 2l-9.6 9.6" />
+      <path d="M15.5 7.5l1.5 1.5" />
+      <path d="M18.5 4.5l1.5 1.5" />
     </svg>
   );
 }

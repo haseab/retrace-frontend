@@ -1,4 +1,17 @@
+import { apiFetch } from "@/lib/client-api";
+
 const DOWNLOAD_URL = "https://cdn.retrace.to/Retrace-v0.7.5.dmg";
+
+export function isWindowsMachine() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform.toLowerCase();
+
+  return userAgent.includes("windows") || platform.startsWith("win");
+}
 
 export function trackDownload(source: string) {
   // Collect browser/system info
@@ -55,7 +68,7 @@ export function trackDownload(source: string) {
   }
 
   // Fire non-blocking request
-  fetch("/api/downloads/track", {
+  apiFetch("/api/downloads/track", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

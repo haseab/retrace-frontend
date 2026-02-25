@@ -92,6 +92,11 @@ src/
 
 Track download events (anonymous, privacy-respecting).
 
+**Auth Header Required:**
+```http
+Authorization: Bearer <BEARER_TOKEN>
+```
+
 **Request Body:**
 ```json
 {
@@ -113,6 +118,11 @@ Track download events (anonymous, privacy-respecting).
 
 Get download statistics.
 
+**Auth Header Required:**
+```http
+Authorization: Bearer <BEARER_TOKEN>
+```
+
 **Response:**
 ```json
 {
@@ -129,11 +139,56 @@ Get download statistics.
 
 ## Environment Variables
 
-Currently, no environment variables are required. The download tracking uses in-memory storage for demo purposes. In production, connect to a database:
+For the feedback dashboard and sync jobs, configure:
 
 ```env
-# Example for production
-DATABASE_URL=postgresql://...
+# Existing feedback storage
+TURSO_DATABASE_URL=...
+TURSO_AUTH_TOKEN=...
+ADMIN_PASSWORD_HASH=...
+
+# Required bearer secret for feedback + analytics APIs
+BEARER_TOKEN=...
+
+# Optional GitHub config (defaults: haseab/retrace)
+FEEDBACK_SYNC_GITHUB_OWNER=haseab
+FEEDBACK_SYNC_GITHUB_REPO=retrace
+GITHUB_TOKEN=...
+
+# Optional Featurebase config
+FEATUREBASE_API_KEY=...
+FEATUREBASE_ORGANIZATION=retrace
+```
+
+## Feedback Sync
+
+- Endpoint: `GET /api/feedback/sync` (also accepts `POST`)
+- Auth: `Authorization: Bearer <BEARER_TOKEN>`
+- Behavior:
+  - Pulls open GitHub issues and outstanding Featurebase posts
+  - Upserts them into `feedback` with source metadata
+  - Marks previously synced items as `resolved` when no longer outstanding
+
+Manual trigger example:
+
+```bash
+curl -H "Authorization: Bearer $BEARER_TOKEN" \
+  https://your-domain.com/api/feedback/sync
+```
+
+## Client Local Storage API Config
+
+Client pages that call feedback/analytics APIs read these localStorage keys:
+
+- `API_BASE_URL` (optional): e.g. `https://your-domain.com`
+- `BEARER_TOKEN` (required): must match server `BEARER_TOKEN`
+- Internal dashboard behavior: if `BEARER_TOKEN` is missing/invalid, users are prompted to enter it before feedback/analytics loads.
+
+Quick setup example in browser devtools:
+
+```js
+localStorage.setItem("API_BASE_URL", "https://your-domain.com");
+localStorage.setItem("BEARER_TOKEN", "your-secret");
 ```
 
 ## Deployment

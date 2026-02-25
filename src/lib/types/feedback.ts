@@ -1,6 +1,7 @@
 export type FeedbackType = "Bug Report" | "Feature Request" | "Question";
-export type FeedbackStatus = "open" | "in_progress" | "to_notify" | "resolved" | "closed";
+export type FeedbackStatus = "open" | "in_progress" | "to_notify" | "notified" | "resolved" | "closed" | "back_burner";
 export type FeedbackPriority = "low" | "medium" | "high" | "critical";
+export type FeedbackSource = "app" | "manual" | "github" | "featurebase";
 export type ViewMode = "kanban" | "list";
 
 export interface DatabaseStats {
@@ -97,8 +98,89 @@ export interface FeedbackItem {
   performanceInfo: DiagnosticPerformanceInfo;
   emergencyCrashReports: string[];
   hasScreenshot: boolean;
+  externalSource: FeedbackSource;
+  externalId: string | null;
+  externalUrl: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FeedbackSummaryItem {
+  id: number;
+  type: FeedbackType;
+  email: string | null;
+  description: string;
+  isRead: boolean;
+  status: FeedbackStatus;
+  priority: FeedbackPriority;
+  appVersion: string;
+  macOSVersion: string;
+  hasScreenshot: boolean;
+  externalSource: FeedbackSource;
+  externalId: string | null;
+  externalUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function hydrateFeedbackSummary(summary: FeedbackSummaryItem): FeedbackItem {
+  return {
+    ...summary,
+    notes: "",
+    tags: [],
+    buildNumber: "",
+    deviceModel: "",
+    totalDiskSpace: "",
+    freeDiskSpace: "",
+    databaseStats: {
+      sessionCount: 0,
+      frameCount: 0,
+      segmentCount: 0,
+      databaseSizeMB: 0,
+    },
+    recentErrors: [],
+    recentLogs: [],
+    diagnosticsTimestamp: null,
+    settingsSnapshot: {},
+    displayCount: 0,
+    displayInfo: {
+      count: 0,
+      displays: [],
+      mainDisplayIndex: 0,
+    },
+    processInfo: {
+      totalRunning: 0,
+      eventMonitoringApps: 0,
+      windowManagementApps: 0,
+      securityApps: 0,
+      hasJamf: false,
+      hasKandji: false,
+      axuiServerCPU: 0,
+      windowServerCPU: 0,
+    },
+    accessibilityInfo: {
+      voiceOverEnabled: false,
+      switchControlEnabled: false,
+      reduceMotionEnabled: false,
+      increaseContrastEnabled: false,
+      reduceTransparencyEnabled: false,
+      differentiateWithoutColorEnabled: false,
+      displayHasInvertedColors: false,
+    },
+    performanceInfo: {
+      cpuUsagePercent: 0,
+      memoryUsedGB: 0,
+      memoryTotalGB: 0,
+      memoryPressure: "unknown",
+      swapUsedGB: 0,
+      thermalState: "unknown",
+      processorCount: 0,
+      isLowPowerModeEnabled: false,
+      powerSource: "unknown",
+      batteryLevel: null,
+    },
+    emergencyCrashReports: [],
+  };
 }
 
 export interface FeedbackFilters {
@@ -114,7 +196,7 @@ export interface FeedbackResponse {
   hasMore: boolean;
   offset: number;
   limit: number;
-  feedback: FeedbackItem[];
+  feedback: FeedbackSummaryItem[];
 }
 
 // Status display configuration
@@ -122,8 +204,10 @@ export const STATUS_CONFIG: Record<FeedbackStatus, { label: string; color: strin
   open: { label: "Open", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
   in_progress: { label: "In Progress", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
   to_notify: { label: "To Notify", color: "bg-violet-500/20 text-violet-400 border-violet-500/30" },
+  notified: { label: "Notified", color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" },
   resolved: { label: "Resolved", color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  closed: { label: "Closed", color: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
+  closed: { label: "Cancelled", color: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
+  back_burner: { label: "Back Burner", color: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
 };
 
 // Priority display configuration
@@ -139,6 +223,14 @@ export const TYPE_CONFIG: Record<FeedbackType, { label: string; color: string }>
   "Bug Report": { label: "Bug Report", color: "bg-red-500/20 text-red-400 border-red-500/30" },
   "Feature Request": { label: "Feature Request", color: "bg-green-500/20 text-green-400 border-green-500/30" },
   "Question": { label: "Question", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+};
+
+// Feedback source configuration
+export const SOURCE_CONFIG: Record<FeedbackSource, { label: string; color: string }> = {
+  app: { label: "App", color: "bg-[#0b336c] text-white border-[#0b336c]" },
+  manual: { label: "Manual", color: "bg-gray-500/20 text-gray-300 border-gray-500/30" },
+  github: { label: "GitHub", color: "bg-green-500/20 text-green-300 border-green-500/30" },
+  featurebase: { label: "Featurebase", color: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
 };
 
 // Download analytics types (for analytics page)
@@ -169,8 +261,40 @@ export interface DownloadStats {
   byOs: { os: string; count: number }[];
   bySource: { source: string; count: number }[];
   recent: DownloadItem[];
-  hourlyDownloads?: { created_at: string }[];
-  dailyDownloads?: { created_at: string }[];
+  hourlyDownloads?: DownloadSeriesPoint[];
+  dailyDownloads?: DownloadSeriesPoint[];
+  r2VersionHistory?: R2VersionHistory | null;
+  r2VersionHistoryError?: string | null;
+}
+
+export interface DownloadSeriesPoint {
+  created_at?: string;
+  bucket_start?: string;
+  count?: number;
+}
+
+export interface R2VersionHistoryPoint {
+  date: string;
+  requests: number;
+  responseBytes: number;
+}
+
+export interface R2VersionHistoryVersion {
+  objectName: string;
+  version: string;
+  totalRequests: number;
+  totalResponseBytes: number;
+  daily: R2VersionHistoryPoint[];
+}
+
+export interface R2VersionHistory {
+  bucket: string;
+  source: "cloudflare_r2";
+  metric: string;
+  rangeStart: string;
+  rangeEnd: string;
+  versions: R2VersionHistoryVersion[];
+  dailyTotals: R2VersionHistoryPoint[];
 }
 
 // Tag color options - generates consistent colors based on tag name

@@ -1,4 +1,5 @@
 import type { Client } from "@libsql/client";
+import { extractLeadingBracketTokens } from "@/lib/feedback-display";
 
 export interface FeedbackDisplay {
   index: number;
@@ -73,13 +74,24 @@ export interface UpsertFeedbackDiagnosticsOptions {
   logTimings?: boolean;
 }
 
+export interface GetNormalizedDiagnosticsOptions {
+  includePerformance?: boolean;
+  includeProcess?: boolean;
+  includeAccessibility?: boolean;
+  includeDisplays?: boolean;
+  includeSettings?: boolean;
+  includeCrashReports?: boolean;
+  includeRecentErrors?: boolean;
+  includeRecentLogs?: boolean;
+}
+
 export interface FeedbackApiItem {
   id: number;
   type: string;
   email: string | null;
   description: string;
   isRead: boolean;
-  status: "open" | "in_progress" | "to_notify" | "resolved" | "closed";
+  status: "open" | "in_progress" | "to_notify" | "notified" | "resolved" | "closed" | "back_burner";
   priority: "low" | "medium" | "high" | "critical";
   notes: string;
   tags: string[];
@@ -106,6 +118,27 @@ export interface FeedbackApiItem {
   performanceInfo: FeedbackPerformanceInfo;
   emergencyCrashReports: string[];
   hasScreenshot: boolean;
+  externalSource: "app" | "manual" | "github" | "featurebase";
+  externalId: string | null;
+  externalUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedbackSummaryApiItem {
+  id: number;
+  type: "Bug Report" | "Feature Request" | "Question";
+  email: string | null;
+  description: string;
+  isRead: boolean;
+  status: FeedbackApiItem["status"];
+  priority: FeedbackApiItem["priority"];
+  appVersion: string;
+  macOSVersion: string;
+  hasScreenshot: boolean;
+  externalSource: FeedbackApiItem["externalSource"];
+  externalId: string | null;
+  externalUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,8 +161,12 @@ export interface NormalizedDiagnosticsState {
   recentErrors: string[];
 }
 
-const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "resolved", "closed"]);
+const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
+const VALID_TYPES = new Set(["Bug Report", "Feature Request", "Question"]);
+const BUG_TYPE_KEYWORDS = ["bug", "crash", "broken", "regression", "error", "failure", "fix"];
+const QUESTION_TYPE_KEYWORDS = ["question", "q", "support", "help"];
+const FEATURE_TYPE_KEYWORDS = ["feature", "enhancement", "request", "idea"];
 
 export const DEFAULT_DISPLAY_INFO: FeedbackDisplayInfo = {
   count: 0,
@@ -886,242 +923,273 @@ export async function upsertFeedbackDiagnostics(
 
 export async function getNormalizedDiagnosticsByFeedbackIds(
   database: Client,
-  feedbackIds: number[]
+  feedbackIds: number[],
+  options: GetNormalizedDiagnosticsOptions = {}
 ): Promise<Map<number, NormalizedDiagnosticsState>> {
   const ids = uniqueFeedbackIds(feedbackIds);
   if (ids.length === 0) {
     return new Map<number, NormalizedDiagnosticsState>();
   }
 
+  const includePerformance = options.includePerformance ?? true;
+  const includeProcess = options.includeProcess ?? true;
+  const includeAccessibility = options.includeAccessibility ?? true;
+  const includeDisplays = options.includeDisplays ?? true;
+  const includeSettings = options.includeSettings ?? true;
+  const includeCrashReports = options.includeCrashReports ?? true;
+  const includeRecentErrors = options.includeRecentErrors ?? true;
+  const includeRecentLogs = options.includeRecentLogs ?? true;
+
   const placeholders = buildInClause(ids);
   const diagnosticsById = new Map<number, NormalizedDiagnosticsState>();
 
-  const performanceResult = await database.execute({
-    sql: `
-      SELECT
-        feedback_id,
-        cpu_usage_percent,
-        memory_used_gb,
-        memory_total_gb,
-        memory_pressure,
-        swap_used_gb,
-        thermal_state,
-        processor_count,
-        is_low_power_mode_enabled,
-        power_source,
-        battery_level
-      FROM feedback_performance
-      WHERE feedback_id IN (${placeholders})
-    `,
-    args: ids,
-  });
-
-  for (const row of performanceResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
-    }
-
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasPerformance = true;
-    state.performanceInfo = {
-      cpuUsagePercent: toNumber(row.cpu_usage_percent, 0),
-      memoryUsedGB: toNumber(row.memory_used_gb, 0),
-      memoryTotalGB: toNumber(row.memory_total_gb, 0),
-      memoryPressure: toStringValue(row.memory_pressure, "unknown"),
-      swapUsedGB: toNumber(row.swap_used_gb, 0),
-      thermalState: toStringValue(row.thermal_state, "unknown"),
-      processorCount: toNumber(row.processor_count, 0),
-      isLowPowerModeEnabled: toBoolean(row.is_low_power_mode_enabled),
-      powerSource: toStringValue(row.power_source, "unknown"),
-      batteryLevel: toInteger(row.battery_level),
-    };
-  }
-
-  const processResult = await database.execute({
-    sql: `
-      SELECT
-        feedback_id,
-        total_running,
-        event_monitoring_apps,
-        window_management_apps,
-        security_apps,
-        has_jamf,
-        has_kandji,
-        axui_server_cpu,
-        window_server_cpu
-      FROM feedback_process
-      WHERE feedback_id IN (${placeholders})
-    `,
-    args: ids,
-  });
-
-  for (const row of processResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
-    }
-
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasProcess = true;
-    state.processInfo = {
-      totalRunning: toNumber(row.total_running, 0),
-      eventMonitoringApps: toNumber(row.event_monitoring_apps, 0),
-      windowManagementApps: toNumber(row.window_management_apps, 0),
-      securityApps: toNumber(row.security_apps, 0),
-      hasJamf: toBoolean(row.has_jamf),
-      hasKandji: toBoolean(row.has_kandji),
-      axuiServerCPU: toNumber(row.axui_server_cpu, 0),
-      windowServerCPU: toNumber(row.window_server_cpu, 0),
-    };
-  }
-
-  const accessibilityResult = await database.execute({
-    sql: `
-      SELECT
-        feedback_id,
-        voice_over_enabled,
-        switch_control_enabled,
-        reduce_motion_enabled,
-        increase_contrast_enabled,
-        reduce_transparency_enabled,
-        differentiate_without_color_enabled,
-        display_has_inverted_colors
-      FROM feedback_accessibility
-      WHERE feedback_id IN (${placeholders})
-    `,
-    args: ids,
-  });
-
-  for (const row of accessibilityResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
-    }
-
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasAccessibility = true;
-    state.accessibilityInfo = {
-      voiceOverEnabled: toBoolean(row.voice_over_enabled),
-      switchControlEnabled: toBoolean(row.switch_control_enabled),
-      reduceMotionEnabled: toBoolean(row.reduce_motion_enabled),
-      increaseContrastEnabled: toBoolean(row.increase_contrast_enabled),
-      reduceTransparencyEnabled: toBoolean(row.reduce_transparency_enabled),
-      differentiateWithoutColorEnabled: toBoolean(row.differentiate_without_color_enabled),
-      displayHasInvertedColors: toBoolean(row.display_has_inverted_colors),
-    };
-  }
-
-  const displayResult = await database.execute({
-    sql: `
-      SELECT
-        feedback_id,
-        row_index,
-        display_index,
-        resolution,
-        backing_scale_factor,
-        color_space,
-        refresh_rate,
-        is_retina,
-        frame,
-        is_main_display
-      FROM feedback_displays
-      WHERE feedback_id IN (${placeholders})
-      ORDER BY feedback_id ASC, row_index ASC
-    `,
-    args: ids,
-  });
-
-  for (const row of displayResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
-    }
-
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasDisplays = true;
-    state.displayInfo.displays.push({
-      index: toNumber(row.display_index, 0),
-      resolution: toStringValue(row.resolution),
-      backingScaleFactor: toStringValue(row.backing_scale_factor),
-      colorSpace: toStringValue(row.color_space),
-      refreshRate: toStringValue(row.refresh_rate),
-      isRetina: toBoolean(row.is_retina),
-      frame: toStringValue(row.frame),
+  if (includePerformance) {
+    const performanceResult = await database.execute({
+      sql: `
+        SELECT
+          feedback_id,
+          cpu_usage_percent,
+          memory_used_gb,
+          memory_total_gb,
+          memory_pressure,
+          swap_used_gb,
+          thermal_state,
+          processor_count,
+          is_low_power_mode_enabled,
+          power_source,
+          battery_level
+        FROM feedback_performance
+        WHERE feedback_id IN (${placeholders})
+      `,
+      args: ids,
     });
 
-    if (toBoolean(row.is_main_display)) {
-      state.displayInfo.mainDisplayIndex = toNumber(row.display_index, 0);
+    for (const row of performanceResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasPerformance = true;
+      state.performanceInfo = {
+        cpuUsagePercent: toNumber(row.cpu_usage_percent, 0),
+        memoryUsedGB: toNumber(row.memory_used_gb, 0),
+        memoryTotalGB: toNumber(row.memory_total_gb, 0),
+        memoryPressure: toStringValue(row.memory_pressure, "unknown"),
+        swapUsedGB: toNumber(row.swap_used_gb, 0),
+        thermalState: toStringValue(row.thermal_state, "unknown"),
+        processorCount: toNumber(row.processor_count, 0),
+        isLowPowerModeEnabled: toBoolean(row.is_low_power_mode_enabled),
+        powerSource: toStringValue(row.power_source, "unknown"),
+        batteryLevel: toInteger(row.battery_level),
+      };
     }
   }
 
-  const settingResult = await database.execute({
-    sql: `
-      SELECT feedback_id, setting_key, setting_value
-      FROM feedback_settings
-      WHERE feedback_id IN (${placeholders})
-      ORDER BY feedback_id ASC, setting_key ASC
-    `,
-    args: ids,
-  });
+  if (includeProcess) {
+    const processResult = await database.execute({
+      sql: `
+        SELECT
+          feedback_id,
+          total_running,
+          event_monitoring_apps,
+          window_management_apps,
+          security_apps,
+          has_jamf,
+          has_kandji,
+          axui_server_cpu,
+          window_server_cpu
+        FROM feedback_process
+        WHERE feedback_id IN (${placeholders})
+      `,
+      args: ids,
+    });
 
-  for (const row of settingResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
+    for (const row of processResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasProcess = true;
+      state.processInfo = {
+        totalRunning: toNumber(row.total_running, 0),
+        eventMonitoringApps: toNumber(row.event_monitoring_apps, 0),
+        windowManagementApps: toNumber(row.window_management_apps, 0),
+        securityApps: toNumber(row.security_apps, 0),
+        hasJamf: toBoolean(row.has_jamf),
+        hasKandji: toBoolean(row.has_kandji),
+        axuiServerCPU: toNumber(row.axui_server_cpu, 0),
+        windowServerCPU: toNumber(row.window_server_cpu, 0),
+      };
     }
-
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasSettings = true;
-    state.settingsSnapshot[toStringValue(row.setting_key)] = toStringValue(row.setting_value);
   }
 
-  const crashResult = await database.execute({
-    sql: `
-      SELECT feedback_id, report_index, report_text
-      FROM feedback_crash_reports
-      WHERE feedback_id IN (${placeholders})
-      ORDER BY feedback_id ASC, report_index ASC
-    `,
-    args: ids,
-  });
+  if (includeAccessibility) {
+    const accessibilityResult = await database.execute({
+      sql: `
+        SELECT
+          feedback_id,
+          voice_over_enabled,
+          switch_control_enabled,
+          reduce_motion_enabled,
+          increase_contrast_enabled,
+          reduce_transparency_enabled,
+          differentiate_without_color_enabled,
+          display_has_inverted_colors
+        FROM feedback_accessibility
+        WHERE feedback_id IN (${placeholders})
+      `,
+      args: ids,
+    });
 
-  for (const row of crashResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
+    for (const row of accessibilityResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasAccessibility = true;
+      state.accessibilityInfo = {
+        voiceOverEnabled: toBoolean(row.voice_over_enabled),
+        switchControlEnabled: toBoolean(row.switch_control_enabled),
+        reduceMotionEnabled: toBoolean(row.reduce_motion_enabled),
+        increaseContrastEnabled: toBoolean(row.increase_contrast_enabled),
+        reduceTransparencyEnabled: toBoolean(row.reduce_transparency_enabled),
+        differentiateWithoutColorEnabled: toBoolean(row.differentiate_without_color_enabled),
+        displayHasInvertedColors: toBoolean(row.display_has_inverted_colors),
+      };
     }
-
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasCrashReports = true;
-    state.emergencyCrashReports.push(toStringValue(row.report_text));
   }
 
-  const logResult = await database.execute({
-    sql: `
-      SELECT feedback_id, level, entry_index, message
-      FROM feedback_log_entries
-      WHERE feedback_id IN (${placeholders})
-      ORDER BY feedback_id ASC, level ASC, entry_index ASC
-    `,
-    args: ids,
-  });
+  if (includeDisplays) {
+    const displayResult = await database.execute({
+      sql: `
+        SELECT
+          feedback_id,
+          row_index,
+          display_index,
+          resolution,
+          backing_scale_factor,
+          color_space,
+          refresh_rate,
+          is_retina,
+          frame,
+          is_main_display
+        FROM feedback_displays
+        WHERE feedback_id IN (${placeholders})
+        ORDER BY feedback_id ASC, row_index ASC
+      `,
+      args: ids,
+    });
 
-  for (const row of logResult.rows as Record<string, unknown>[]) {
-    const feedbackId = toInteger(row.feedback_id);
-    if (feedbackId === null) {
-      continue;
+    for (const row of displayResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasDisplays = true;
+      state.displayInfo.displays.push({
+        index: toNumber(row.display_index, 0),
+        resolution: toStringValue(row.resolution),
+        backingScaleFactor: toStringValue(row.backing_scale_factor),
+        colorSpace: toStringValue(row.color_space),
+        refreshRate: toStringValue(row.refresh_rate),
+        isRetina: toBoolean(row.is_retina),
+        frame: toStringValue(row.frame),
+      });
+
+      if (toBoolean(row.is_main_display)) {
+        state.displayInfo.mainDisplayIndex = toNumber(row.display_index, 0);
+      }
     }
+  }
 
-    const state = getOrCreateState(diagnosticsById, feedbackId);
-    state.hasLogEntries = true;
+  if (includeSettings) {
+    const settingResult = await database.execute({
+      sql: `
+        SELECT feedback_id, setting_key, setting_value
+        FROM feedback_settings
+        WHERE feedback_id IN (${placeholders})
+        ORDER BY feedback_id ASC, setting_key ASC
+      `,
+      args: ids,
+    });
 
-    const level = toStringValue(row.level).toLowerCase();
-    const message = toStringValue(row.message);
-    if (level === "error") {
-      state.recentErrors.push(message);
-    } else {
-      state.recentLogs.push(message);
+    for (const row of settingResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasSettings = true;
+      state.settingsSnapshot[toStringValue(row.setting_key)] = toStringValue(row.setting_value);
+    }
+  }
+
+  if (includeCrashReports) {
+    const crashResult = await database.execute({
+      sql: `
+        SELECT feedback_id, report_index, report_text
+        FROM feedback_crash_reports
+        WHERE feedback_id IN (${placeholders})
+        ORDER BY feedback_id ASC, report_index ASC
+      `,
+      args: ids,
+    });
+
+    for (const row of crashResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasCrashReports = true;
+      state.emergencyCrashReports.push(toStringValue(row.report_text));
+    }
+  }
+
+  const includeAnyLogEntries = includeRecentErrors || includeRecentLogs;
+  if (includeAnyLogEntries) {
+    const logLevelFilter = includeRecentErrors && !includeRecentLogs
+      ? "AND level = 'error'"
+      : "";
+
+    const logResult = await database.execute({
+      sql: `
+        SELECT feedback_id, level, entry_index, message
+        FROM feedback_log_entries
+        WHERE feedback_id IN (${placeholders}) ${logLevelFilter}
+        ORDER BY feedback_id ASC, level ASC, entry_index ASC
+      `,
+      args: ids,
+    });
+
+    for (const row of logResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.hasLogEntries = true;
+
+      const level = toStringValue(row.level).toLowerCase();
+      const message = toStringValue(row.message);
+      if (level === "error") {
+        if (includeRecentErrors) {
+          state.recentErrors.push(message);
+        }
+      } else if (includeRecentLogs) {
+        state.recentLogs.push(message);
+      }
     }
   }
 
@@ -1169,6 +1237,79 @@ function parseLegacyErrors(row: Record<string, unknown>): string[] {
   return normalizeStringArray(parseJson<string[]>(row.recent_errors, []));
 }
 
+function inferTypeFromDescription(description: string): FeedbackSummaryApiItem["type"] | null {
+  const firstLine = description.split("\n")[0] ?? "";
+  const bracketTokens = extractLeadingBracketTokens(firstLine).tokens.map((token) => token.toLowerCase());
+
+  if (bracketTokens.some((token) => BUG_TYPE_KEYWORDS.some((keyword) => token.includes(keyword)))) {
+    return "Bug Report";
+  }
+  if (bracketTokens.some((token) => QUESTION_TYPE_KEYWORDS.some((keyword) => token.includes(keyword)))) {
+    return "Question";
+  }
+  if (bracketTokens.some((token) => FEATURE_TYPE_KEYWORDS.some((keyword) => token.includes(keyword)))) {
+    return "Feature Request";
+  }
+
+  return null;
+}
+
+function normalizeType(rawType: unknown, description: string): FeedbackSummaryApiItem["type"] {
+  const normalized = toStringValue(rawType).trim();
+  const inferred = inferTypeFromDescription(description);
+
+  if (VALID_TYPES.has(normalized)) {
+    // If metadata says bug, trust it over stale persisted type.
+    if (inferred === "Bug Report" && normalized !== "Bug Report") {
+      return "Bug Report";
+    }
+    return normalized as FeedbackSummaryApiItem["type"];
+  }
+
+  return inferred ?? "Feature Request";
+}
+
+function normalizeStatus(rawStatus: unknown): FeedbackApiItem["status"] {
+  const status = toStringValue(rawStatus, "open");
+  return VALID_STATUSES.has(status) ? (status as FeedbackApiItem["status"]) : "open";
+}
+
+function normalizePriority(rawPriority: unknown): FeedbackApiItem["priority"] {
+  const priority = toStringValue(rawPriority, "medium");
+  return VALID_PRIORITIES.has(priority) ? (priority as FeedbackApiItem["priority"]) : "medium";
+}
+
+function resolveExternalSource(
+  rawSource: unknown,
+  tags: string[],
+  appVersion: string,
+  buildNumber: string
+): FeedbackApiItem["externalSource"] {
+  const normalizedSource = toStringValue(rawSource).trim().toLowerCase();
+  if (
+    normalizedSource === "app" ||
+    normalizedSource === "manual" ||
+    normalizedSource === "github" ||
+    normalizedSource === "featurebase"
+  ) {
+    return normalizedSource as FeedbackApiItem["externalSource"];
+  }
+
+  const normalizedTags = tags.map((tag) => tag.toLowerCase());
+  if (normalizedTags.includes("source:github") || normalizedTags.includes("github")) {
+    return "github";
+  }
+  if (normalizedTags.includes("source:featurebase") || normalizedTags.includes("featurebase")) {
+    return "featurebase";
+  }
+
+  if (appVersion === "internal-dashboard" || buildNumber === "manual-entry") {
+    return "manual";
+  }
+
+  return "app";
+}
+
 export function mapFeedbackRowToApiItem(
   rawRow: Record<string, unknown>,
   normalizedDiagnostics: NormalizedDiagnosticsState | undefined
@@ -1176,8 +1317,12 @@ export function mapFeedbackRowToApiItem(
   const id = toInteger(rawRow.id) ?? 0;
   const createdAt = toStringValue(rawRow.created_at);
   const updatedAt = toStringValue(rawRow.updated_at, createdAt);
-  const status = toStringValue(rawRow.status, "open");
-  const priority = toStringValue(rawRow.priority, "medium");
+  const description = toStringValue(rawRow.description);
+  const type = normalizeType(rawRow.type, description);
+  const status = normalizeStatus(rawRow.status);
+  const priority = normalizePriority(rawRow.priority);
+  const appVersion = toStringValue(rawRow.app_version);
+  const buildNumber = toStringValue(rawRow.build_number);
 
   const legacyDisplayInfo = parseLegacyDisplayInfo(rawRow);
   const displayInfo = normalizedDiagnostics?.hasDisplays
@@ -1209,19 +1354,22 @@ export function mapFeedbackRowToApiItem(
   const recentErrors = normalizedDiagnostics?.hasLogEntries
     ? normalizedDiagnostics.recentErrors
     : parseLegacyErrors(rawRow);
+  const externalSource = resolveExternalSource(rawRow.external_source, tags, appVersion, buildNumber);
+  const externalIdRaw = toStringValue(rawRow.external_id).trim();
+  const externalUrlRaw = toStringValue(rawRow.external_url).trim();
 
   return {
     id,
-    type: toStringValue(rawRow.type),
+    type,
     email: rawRow.email === null || rawRow.email === undefined ? null : toStringValue(rawRow.email),
-    description: toStringValue(rawRow.description),
+    description,
     isRead: toBoolean(rawRow.is_read),
-    status: VALID_STATUSES.has(status) ? (status as FeedbackApiItem["status"]) : "open",
-    priority: VALID_PRIORITIES.has(priority) ? (priority as FeedbackApiItem["priority"]) : "medium",
+    status,
+    priority,
     notes: toStringValue(rawRow.notes),
     tags,
-    appVersion: toStringValue(rawRow.app_version),
-    buildNumber: toStringValue(rawRow.build_number),
+    appVersion,
+    buildNumber,
     macOSVersion: toStringValue(rawRow.macos_version),
     deviceModel: toStringValue(rawRow.device_model),
     totalDiskSpace: toStringValue(rawRow.total_disk_space),
@@ -1256,6 +1404,43 @@ export function mapFeedbackRowToApiItem(
       ? normalizedDiagnostics.emergencyCrashReports
       : parseLegacyCrashReports(rawRow),
     hasScreenshot: toBoolean(rawRow.has_screenshot),
+    externalSource,
+    externalId: externalIdRaw.length > 0 ? externalIdRaw : null,
+    externalUrl: externalUrlRaw.length > 0 ? externalUrlRaw : null,
+    createdAt,
+    updatedAt,
+  };
+}
+
+export function mapFeedbackSummaryRowToApiItem(rawRow: Record<string, unknown>): FeedbackSummaryApiItem {
+  const id = toInteger(rawRow.id) ?? 0;
+  const createdAt = toStringValue(rawRow.created_at);
+  const updatedAt = toStringValue(rawRow.updated_at, createdAt);
+  const description = toStringValue(rawRow.description);
+  const type = normalizeType(rawRow.type, description);
+  const appVersion = toStringValue(rawRow.app_version);
+  const buildNumber = toStringValue(rawRow.build_number);
+  const tags = parseJson<string[]>(rawRow.tags, [])
+    .map((tag) => toStringValue(tag).trim())
+    .filter((tag) => tag.length > 0);
+  const externalSource = resolveExternalSource(rawRow.external_source, tags, appVersion, buildNumber);
+  const externalIdRaw = toStringValue(rawRow.external_id).trim();
+  const externalUrlRaw = toStringValue(rawRow.external_url).trim();
+
+  return {
+    id,
+    type,
+    email: rawRow.email === null || rawRow.email === undefined ? null : toStringValue(rawRow.email),
+    description,
+    isRead: toBoolean(rawRow.is_read),
+    status: normalizeStatus(rawRow.status),
+    priority: normalizePriority(rawRow.priority),
+    appVersion,
+    macOSVersion: toStringValue(rawRow.macos_version),
+    hasScreenshot: toBoolean(rawRow.has_screenshot),
+    externalSource,
+    externalId: externalIdRaw.length > 0 ? externalIdRaw : null,
+    externalUrl: externalUrlRaw.length > 0 ? externalUrlRaw : null,
     createdAt,
     updatedAt,
   };

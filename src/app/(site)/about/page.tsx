@@ -2,7 +2,7 @@
 
 import { SectionHeader } from "@/components/ui/section-header";
 import { motion } from "framer-motion";
-import { Github, Mail, MessageSquare } from "lucide-react";
+import { Github } from "lucide-react";
 import Script from "next/script";
 import { useEffect } from "react";
 
@@ -272,73 +272,6 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Contact */}
-        <section className="px-4 sm:px-6 lg:px-8 py-12">
-          <div className="mx-auto max-w-4xl">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="rounded-xl border border-border bg-card p-8 text-center space-y-6"
-            >
-              <h2 className="text-3xl font-bold">Get in Touch</h2>
-              <p className="text-lg text-muted-foreground">
-                Questions, feedback, or just want to say hi?
-              </p>
-              <div className="grid gap-4 md:grid-cols-3">
-                <a
-                  href="mailto:support@retrace.to"
-                  className="p-6 rounded-lg border border-border hover:border-primary transition-colors group"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                      <Mail className="h-6 w-6" />
-                    </div>
-                    <h3 className="font-semibold">Report Bugs</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Email Support
-                    </p>
-                  </div>
-                </a>
-                <a
-                  href="https://retrace.featurebase.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-6 rounded-lg border border-border hover:border-primary transition-colors group"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                      <MessageSquare className="h-6 w-6" />
-                    </div>
-                    <h3 className="font-semibold">Community</h3>
-                    <p className="text-sm text-muted-foreground">Featurebase</p>
-                  </div>
-                </a>
-                <a
-                  href="https://twitter.com/haseab_"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-6 rounded-lg border border-border hover:border-primary transition-colors group"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                      <svg
-                        className="h-6 w-6"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                      </svg>
-                    </div>
-                    <h3 className="font-semibold">Follow Updates</h3>
-                    <p className="text-sm text-muted-foreground">Twitter/X</p>
-                  </div>
-                </a>
-              </div>
-            </motion.div>
-          </div>
-        </section>
       </div>
     </>
   );

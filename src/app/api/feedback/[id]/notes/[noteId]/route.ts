@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, initDatabase } from "@/lib/db";
+import { requireApiBearerAuth } from "@/lib/api-auth";
+import { createApiRouteLogger } from "@/lib/api-route-logger";
 
 let initialized = false;
 
@@ -8,6 +10,15 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; noteId: string }> }
 ) {
+  const logger = createApiRouteLogger("feedback.notes.note.DELETE", { request });
+  logger.start();
+
+  const authError = requireApiBearerAuth(request);
+  if (authError) {
+    logger.warn("auth_failed", { status: authError.status });
+    return authError;
+  }
+
   try {
     if (!initialized) {
       await initDatabase();
@@ -23,6 +34,7 @@ export async function DELETE(
     });
 
     if (noteExists.rows.length === 0) {
+      logger.warn("note_not_found", { status: 404, feedbackId: id, noteId });
       return NextResponse.json(
         { error: "Note not found" },
         { status: 404 }
@@ -34,12 +46,18 @@ export async function DELETE(
       args: [noteId],
     });
 
+    logger.success({
+      status: 200,
+      feedbackId: id,
+      noteId,
+    });
+
     return NextResponse.json({
       success: true,
       message: "Note deleted",
     });
   } catch (error) {
-    console.error("Error deleting note:", error);
+    logger.error("failed", error, { status: 500 });
     return NextResponse.json(
       { error: "Failed to delete note" },
       { status: 500 }

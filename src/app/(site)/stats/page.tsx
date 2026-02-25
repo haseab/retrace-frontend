@@ -4,27 +4,39 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Download, TrendingUp, Users, Package } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
+import { authFetch } from "@/lib/client-api";
+import { DownloadStats } from "@/lib/types/feedback";
 
-interface DownloadStat {
-  version: string;
-  platform: string;
-  count: number;
-}
-
-interface Stats {
-  totalDownloads: number;
-  stats: DownloadStat[];
-}
+const EMPTY_STATS: DownloadStats = {
+  totalDownloads: 0,
+  byOs: [],
+  bySource: [],
+  recent: [],
+  hourlyDownloads: [],
+  dailyDownloads: [],
+};
 
 export default function StatsPage() {
-  const [stats, setStats] = useState<Stats>({ totalDownloads: 0, stats: [] });
+  const [stats, setStats] = useState<DownloadStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/downloads/track")
+    authFetch("/api/analytics")
       .then((res) => res.json())
       .then((data) => {
-        setStats(data);
+        setStats({
+          totalDownloads:
+            typeof data?.totalDownloads === "number" ? data.totalDownloads : 0,
+          byOs: Array.isArray(data?.byOs) ? data.byOs : [],
+          bySource: Array.isArray(data?.bySource) ? data.bySource : [],
+          recent: Array.isArray(data?.recent) ? data.recent : [],
+          hourlyDownloads: Array.isArray(data?.hourlyDownloads)
+            ? data.hourlyDownloads
+            : [],
+          dailyDownloads: Array.isArray(data?.dailyDownloads)
+            ? data.dailyDownloads
+            : [],
+        });
         setLoading(false);
       })
       .catch((error) => {
@@ -33,21 +45,8 @@ export default function StatsPage() {
       });
   }, []);
 
-  const platformStats = stats.stats.reduce(
-    (acc, stat) => {
-      acc[stat.platform] = (acc[stat.platform] || 0) + stat.count;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const versionStats = stats.stats.reduce(
-    (acc, stat) => {
-      acc[stat.version] = (acc[stat.version] || 0) + stat.count;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const osStats = stats.byOs ?? [];
+  const sourceStats = stats.bySource ?? [];
 
   if (loading) {
     return (
@@ -99,12 +98,12 @@ export default function StatsPage() {
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Versions
+                  Sources
                 </h3>
                 <Package className="h-4 w-4 text-primary" />
               </div>
               <p className="text-3xl font-bold">
-                {Object.keys(versionStats).length || "—"}
+                {sourceStats.length || "—"}
               </p>
             </motion.div>
 
@@ -116,12 +115,12 @@ export default function StatsPage() {
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Platforms
+                  Operating Systems
                 </h3>
                 <Users className="h-4 w-4 text-primary" />
               </div>
               <p className="text-3xl font-bold">
-                {Object.keys(platformStats).length || "—"}
+                {osStats.length || "—"}
               </p>
             </motion.div>
 
@@ -141,26 +140,26 @@ export default function StatsPage() {
             </motion.div>
           </div>
 
-          {/* Platform Distribution */}
-          {Object.keys(platformStats).length > 0 && (
+          {/* OS Distribution */}
+          {osStats.length > 0 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold">Platform Distribution</h2>
+              <h2 className="text-2xl font-bold">OS Distribution</h2>
               <div className="grid gap-4 md:grid-cols-2">
-                {Object.entries(platformStats).map(([platform, count], index) => {
+                {osStats.map(({ os, count }, index) => {
                   const percentage = (
                     (count / stats.totalDownloads) *
                     100
                   ).toFixed(1);
                   return (
                     <motion.div
-                      key={platform}
+                      key={os}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.5, delay: index * 0.1 }}
                       className="rounded-lg border border-border bg-card p-6 space-y-3"
                     >
                       <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">{platform}</h3>
+                        <h3 className="font-semibold">{os}</h3>
                         <span className="text-2xl font-bold">{count}</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
@@ -179,28 +178,28 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Version Distribution */}
-          {Object.keys(versionStats).length > 0 && (
+          {/* Source Distribution */}
+          {sourceStats.length > 0 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold">Version Distribution</h2>
+              <h2 className="text-2xl font-bold">Source Distribution</h2>
               <div className="space-y-3">
-                {Object.entries(versionStats)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([version, count], index) => {
+                {[...sourceStats]
+                  .sort((a, b) => b.count - a.count)
+                  .map(({ source, count }, index) => {
                     const percentage = (
                       (count / stats.totalDownloads) *
                       100
                     ).toFixed(1);
                     return (
                       <motion.div
-                        key={version}
+                        key={source}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: index * 0.1 }}
                         className="rounded-lg border border-border bg-card p-6 space-y-3"
                       >
                         <div className="flex items-center justify-between">
-                          <h3 className="font-semibold">v{version}</h3>
+                          <h3 className="font-semibold">{source}</h3>
                           <span className="text-xl font-bold">{count}</span>
                         </div>
                         <div className="w-full bg-muted rounded-full h-2">

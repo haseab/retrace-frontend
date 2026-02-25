@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { createApiRouteLogger } from "@/lib/api-route-logger";
 
 // In-memory rate limiting (resets on server restart, but good enough for basic protection)
 const loginAttempts = new Map<string, { count: number; lastAttempt: number; lockedUntil: number }>();
@@ -64,7 +65,11 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  const logger = createApiRouteLogger("auth.login.POST", { request });
+  logger.start();
+
   const ip = getClientIP(request);
+  logger.info("client_identified", { ip });
 
   // Check rate limit
   const rateLimit = checkRateLimit(ip);
@@ -72,6 +77,13 @@ export async function POST(request: NextRequest) {
     const retryAfter = rateLimit.lockedUntil
       ? Math.ceil((rateLimit.lockedUntil - Date.now()) / 1000)
       : 60;
+
+    logger.warn("rate_limited", {
+      status: 429,
+      ip,
+      retryAfterSeconds: retryAfter,
+    });
+
     return NextResponse.json(
       {
         error: "Too many login attempts. Please try again later.",
@@ -88,13 +100,16 @@ export async function POST(request: NextRequest) {
     const { password } = await request.json();
 
     if (!password || typeof password !== "string") {
+      logger.warn("missing_password", { status: 400, ip });
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
     // Get expected hash from environment variable
     const expectedHash = process.env.ADMIN_PASSWORD_HASH;
     if (!expectedHash) {
-      console.error("ADMIN_PASSWORD_HASH environment variable not set");
+      logger.error("missing_admin_password_hash", new Error("ADMIN_PASSWORD_HASH environment variable not set"), {
+        status: 500,
+      });
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
@@ -121,9 +136,19 @@ export async function POST(request: NextRequest) {
         path: "/",
       });
 
+      logger.success({
+        status: 200,
+        ip,
+      });
+
       return response;
     } else {
       const remaining = rateLimit.remainingAttempts - 1;
+      logger.warn("invalid_password", {
+        status: 401,
+        ip,
+        remainingAttempts: remaining,
+      });
       return NextResponse.json(
         {
           error: "Invalid password",
@@ -132,7 +157,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-  } catch {
+  } catch (error) {
+    logger.error("invalid_request", error, { status: 400, ip });
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }

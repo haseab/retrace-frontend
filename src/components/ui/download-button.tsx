@@ -1,8 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { handleDownloadClick } from "@/lib/track-download";
+import { WindowsDownloadDialog } from "@/components/ui/windows-download-dialog";
+import { handleDownloadClick, isWindowsMachine } from "@/lib/track-download";
 import { Download } from "lucide-react";
+import { useState } from "react";
 
 interface DownloadButtonProps {
   text?: string;
@@ -19,6 +21,17 @@ export function DownloadButton({
   showIcon = true,
   source = "website",
 }: DownloadButtonProps) {
+  const [showWindowsDialog, setShowWindowsDialog] = useState(false);
+
+  const handleClick = () => {
+    if (isWindowsMachine()) {
+      setShowWindowsDialog(true);
+      return;
+    }
+
+    handleDownloadClick(source);
+  };
+
   return (
     <>
       {/* Mobile: Show simplified message */}
@@ -39,7 +52,7 @@ export function DownloadButton({
           <Button
             size="lg"
             variant="outline"
-            onClick={() => handleDownloadClick(source)}
+            onClick={handleClick}
             className={`text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full ${className}`}
           >
             {showIcon && <Download className="mr-2 h-5 w-5" />}
@@ -51,6 +64,11 @@ export function DownloadButton({
           />
         </div>
       </div>
+
+      <WindowsDownloadDialog
+        open={showWindowsDialog}
+        onOpenChange={setShowWindowsDialog}
+      />
     </>
   );
 }

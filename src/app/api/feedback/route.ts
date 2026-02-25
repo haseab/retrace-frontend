@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, initDatabase } from "@/lib/db";
+import { requireApiBearerAuth } from "@/lib/api-auth";
+import { createApiRouteLogger } from "@/lib/api-route-logger";
 import {
   DEFAULT_ACCESSIBILITY_INFO,
   DEFAULT_DISPLAY_INFO,
   DEFAULT_PERFORMANCE_INFO,
   DEFAULT_PROCESS_INFO,
-  getNormalizedDiagnosticsByFeedbackIds,
-  mapFeedbackRowToApiItem,
+  mapFeedbackSummaryRowToApiItem,
   stringifyJson,
   upsertFeedbackDiagnostics,
 } from "@/lib/feedback-diagnostics";
@@ -22,6 +23,9 @@ interface FeedbackSubmission {
   type: string; // "Bug Report" | "Feature Request" | "Question"
   email?: string;
   description: string;
+  externalSource?: string; // "app" | "manual" | "github" | "featurebase"
+  externalId?: string;
+  externalUrl?: string;
   diagnostics: {
     appVersion: string;
     buildNumber: string;
@@ -51,6 +55,8 @@ interface FeedbackSubmission {
 
 // Ensure table exists on first request
 let initialized = false;
+const DEFAULT_FEEDBACK_PAGE_SIZE = 30;
+const MAX_FEEDBACK_PAGE_SIZE = 50;
 
 function elapsedMs(startedAt: number): number {
   return Date.now() - startedAt;
@@ -78,7 +84,34 @@ function getDisplayCount(displayInfo: FeedbackDisplayInfo | undefined): number {
   return Math.max(0, Math.max(Math.trunc(parsedCount), displayLength));
 }
 
+function normalizeExternalSource(rawSource: unknown, appVersion: string, buildNumber: string): "app" | "manual" | "github" | "featurebase" {
+  const source = String(rawSource ?? "").trim().toLowerCase();
+  if (source === "app" || source === "manual" || source === "github" || source === "featurebase") {
+    return source;
+  }
+
+  if (appVersion === "internal-dashboard" || buildNumber === "manual-entry") {
+    return "manual";
+  }
+
+  return "app";
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export async function POST(request: NextRequest) {
+  const logger = createApiRouteLogger("feedback.POST", { request });
+  logger.start();
+
+  const authError = requireApiBearerAuth(request);
+  if (authError) {
+    logger.warn("auth_failed", { status: authError.status });
+    return authError;
+  }
+
   const requestStartedAt = Date.now();
   const traceId = `${requestStartedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -113,6 +146,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.type || !body.description || !body.diagnostics) {
+      logger.warn("missing_required_fields", { status: 400 });
       return NextResponse.json(
         { error: "Missing required fields: type, description, or diagnostics" },
         { status: 400 }
@@ -122,6 +156,7 @@ export async function POST(request: NextRequest) {
     // Validate feedback type
     const validTypes = ["Bug Report", "Feature Request", "Question"];
     if (!validTypes.includes(body.type)) {
+      logger.warn("invalid_feedback_type", { status: 400, type: body.type });
       return NextResponse.json(
         { error: `Invalid feedback type. Must be one of: ${validTypes.join(", ")}` },
         { status: 400 }
@@ -130,6 +165,7 @@ export async function POST(request: NextRequest) {
 
     // Validate description is not empty
     if (body.description.trim().length === 0) {
+      logger.warn("empty_description", { status: 400 });
       return NextResponse.json(
         { error: "Description cannot be empty" },
         { status: 400 }
@@ -138,6 +174,13 @@ export async function POST(request: NextRequest) {
 
     const diagnosticsTimestamp = body.diagnostics.timestamp || new Date().toISOString();
     const displayCount = getDisplayCount(body.diagnostics.displayInfo);
+    const externalSource = normalizeExternalSource(
+      body.externalSource,
+      body.diagnostics.appVersion,
+      body.diagnostics.buildNumber
+    );
+    const externalId = normalizeOptionalText(body.externalId);
+    const externalUrl = normalizeOptionalText(body.externalUrl);
 
     // Insert into Turso database with diagnostics fields
     const insertFeedbackStartedAt = Date.now();
@@ -150,8 +193,8 @@ export async function POST(request: NextRequest) {
           frame_count, segment_count, database_size_mb, recent_errors,
           recent_logs, diagnostics_timestamp, settings_snapshot, display_info,
           process_info, accessibility_info, performance_info, emergency_crash_reports,
-          display_count, has_screenshot, screenshot_data
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          display_count, has_screenshot, screenshot_data, external_source, external_id, external_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         body.type,
@@ -183,6 +226,9 @@ export async function POST(request: NextRequest) {
         displayCount,
         body.includeScreenshot && body.screenshotData ? 1 : 0,
         body.screenshotData ? Buffer.from(body.screenshotData, "base64") : null,
+        externalSource,
+        externalId,
+        externalUrl,
       ],
     });
     console.log(`[feedback][POST][${traceId}] inserted feedback row`, {
@@ -224,6 +270,12 @@ export async function POST(request: NextRequest) {
       totalMs: elapsedMs(requestStartedAt),
       feedbackId,
     });
+    logger.success({
+      status: 200,
+      feedbackId,
+      externalSource,
+      totalMs: elapsedMs(requestStartedAt),
+    });
 
     return NextResponse.json({
       success: true,
@@ -235,6 +287,10 @@ export async function POST(request: NextRequest) {
       totalMs: elapsedMs(requestStartedAt),
       error,
     });
+    logger.error("failed", error, {
+      status: 500,
+      totalMs: elapsedMs(requestStartedAt),
+    });
     return NextResponse.json(
       { error: "Failed to process feedback submission" },
       { status: 500 }
@@ -244,6 +300,15 @@ export async function POST(request: NextRequest) {
 
 // GET endpoint to retrieve feedback (admin use)
 export async function GET(request: NextRequest) {
+  const logger = createApiRouteLogger("feedback.GET", { request });
+  logger.start();
+
+  const authError = requireApiBearerAuth(request);
+  if (authError) {
+    logger.warn("auth_failed", { status: authError.status });
+    return authError;
+  }
+
   try {
     // Initialize database on first request
     if (!initialized) {
@@ -259,11 +324,11 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get("limit");
     const offsetParam = searchParams.get("offset");
 
-    const parsedLimit = limitParam === null ? null : Number(limitParam);
+    const parsedLimit = limitParam === null ? Number.NaN : Number(limitParam);
     const parsedOffset = offsetParam === null ? 0 : Number(offsetParam);
-    const limit = parsedLimit === null || Number.isNaN(parsedLimit)
-      ? null
-      : Math.min(100, Math.max(1, Math.trunc(parsedLimit)));
+    const limit = Number.isNaN(parsedLimit)
+      ? DEFAULT_FEEDBACK_PAGE_SIZE
+      : Math.min(MAX_FEEDBACK_PAGE_SIZE, Math.max(1, Math.trunc(parsedLimit)));
     const offset = Number.isNaN(parsedOffset)
       ? 0
       : Math.max(0, Math.trunc(parsedOffset));
@@ -294,47 +359,56 @@ export async function GET(request: NextRequest) {
 
     const whereSql = whereClauses.join(" AND ");
 
-    const countResult = await db.execute({
-      sql: `SELECT COUNT(*) AS total FROM feedback WHERE ${whereSql}`,
-      args,
-    });
-    const totalRaw = countResult.rows[0]?.total;
-    const parsedTotal = typeof totalRaw === "number" ? totalRaw : Number(totalRaw ?? 0);
-    const total = Number.isFinite(parsedTotal) ? Math.max(0, Math.trunc(parsedTotal)) : 0;
+    const selectColumns = [
+      "id",
+      "type",
+      "email",
+      "description",
+      "status",
+      "priority",
+      "tags",
+      "is_read",
+      "app_version",
+      "macos_version",
+      "has_screenshot",
+      "external_source",
+      "external_id",
+      "external_url",
+      "created_at",
+      "updated_at",
+    ].join(", ");
 
-    let sql = `SELECT * FROM feedback WHERE ${whereSql} ORDER BY updated_at DESC`;
+    let sql = `SELECT ${selectColumns} FROM feedback WHERE ${whereSql} ORDER BY updated_at DESC`;
     const queryArgs: (string | number)[] = [...args];
-
-    if (limit !== null) {
-      sql += " LIMIT ? OFFSET ?";
-      queryArgs.push(limit, offset);
-    }
+    sql += " LIMIT ? OFFSET ?";
+    queryArgs.push(limit + 1, offset);
 
     const result = await db.execute({ sql, args: queryArgs });
     const feedbackRows = result.rows as Record<string, unknown>[];
+    const hasMore = feedbackRows.length > limit;
+    const pageRows = hasMore ? feedbackRows.slice(0, limit) : feedbackRows;
+    const returnedCount = pageRows.length;
+    const estimatedTotal = offset + returnedCount + (hasMore ? 1 : 0);
 
-    const feedbackIds = feedbackRows
-      .map((row) => toFeedbackId(row.id))
-      .filter((id): id is number => id !== null);
-
-    const normalizedDiagnosticsById = await getNormalizedDiagnosticsByFeedbackIds(db, feedbackIds);
-    const returnedCount = feedbackRows.length;
-    const hasMore = limit !== null && offset + returnedCount < total;
+    logger.success({
+      status: 200,
+      returnedCount,
+      hasMore,
+      offset,
+      limit,
+      estimatedTotal,
+    });
 
     return NextResponse.json({
       count: returnedCount,
-      total,
+      total: estimatedTotal,
       hasMore,
-      offset: limit === null ? 0 : offset,
-      limit: limit ?? returnedCount,
-      feedback: feedbackRows.map((row) => {
-        const feedbackId = toFeedbackId(row.id);
-        const diagnostics = feedbackId === null ? undefined : normalizedDiagnosticsById.get(feedbackId);
-        return mapFeedbackRowToApiItem(row, diagnostics);
-      }),
+      offset,
+      limit,
+      feedback: pageRows.map((row) => mapFeedbackSummaryRowToApiItem(row)),
     });
   } catch (error) {
-    console.error("Error fetching feedback:", error);
+    logger.error("failed", error, { status: 500 });
     return NextResponse.json(
       { error: "Failed to fetch feedback" },
       { status: 500 }

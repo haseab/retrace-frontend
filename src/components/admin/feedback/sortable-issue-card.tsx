@@ -10,9 +10,10 @@ interface SortableIssueCardProps {
   isUnread: boolean;
   isSelected: boolean;
   onClick: () => void;
+  onHover?: () => void;
 }
 
-export function SortableIssueCard({ issue, isUnread, isSelected, onClick }: SortableIssueCardProps) {
+export function SortableIssueCard({ issue, isUnread, isSelected, onClick, onHover }: SortableIssueCardProps) {
   const {
     attributes,
     listeners,
@@ -50,6 +51,7 @@ export function SortableIssueCard({ issue, isUnread, isSelected, onClick }: Sort
         isUnread={isUnread}
         isSelected={isSelected}
         onClick={onClick}
+        onHover={onHover}
         compact
       />
     </div>

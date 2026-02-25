@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
+import { apiFetch } from "@/lib/client-api";
 
 const LATEST_VERSION = "1.0.0";
 const DMG_SIZE = "45 MB";
@@ -44,7 +45,7 @@ export default function DownloadPage() {
   const handleDownload = async () => {
     // Track download
     try {
-      await fetch("/api/downloads/track", {
+      await apiFetch("/api/downloads/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

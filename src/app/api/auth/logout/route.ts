@@ -1,6 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createApiRouteLogger } from "@/lib/api-route-logger";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const logger = createApiRouteLogger("auth.logout.POST", { request });
+  logger.start();
+
   const response = NextResponse.json({ success: true });
 
   // Clear the session cookie
@@ -12,5 +16,6 @@ export async function POST() {
     path: "/",
   });
 
+  logger.success({ status: 200 });
   return response;
 }

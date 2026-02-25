@@ -17,7 +17,7 @@ import { FeedbackItem, FeedbackStatus } from "@/lib/types/feedback";
 import { KanbanColumn } from "./kanban-column";
 import { IssueCard } from "./issue-card";
 
-const STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "resolved", "closed"];
+const STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"];
 
 interface KanbanBoardProps {
   issuesByStatus: Record<FeedbackStatus, FeedbackItem[]>;
@@ -27,6 +27,7 @@ interface KanbanBoardProps {
   onSelect: (issue: FeedbackItem) => void;
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
   onLoadMore: (status: FeedbackStatus) => void;
+  onIssueHover?: (issueId: number) => void;
 }
 
 function getCreatedTimestamp(createdAt: string): number {
@@ -42,6 +43,7 @@ export function KanbanBoard({
   onSelect,
   onUpdateStatus,
   onLoadMore,
+  onIssueHover,
 }: KanbanBoardProps) {
   const [activeIssue, setActiveIssue] = useState<FeedbackItem | null>(null);
 
@@ -127,6 +129,7 @@ export function KanbanBoard({
               onLoadMore={onLoadMore}
               selectedId={selectedId}
               onSelect={onSelect}
+              onIssueHover={onIssueHover}
             />
           </div>
         ))}

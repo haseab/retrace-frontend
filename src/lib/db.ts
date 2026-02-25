@@ -11,7 +11,7 @@ export const db = createClient({
 });
 
 const NORMALIZED_DIAGNOSTICS_BACKFILL_KEY = "normalized_feedback_diagnostics_backfill_v1";
-const FEEDBACK_SCHEMA_MIGRATIONS_KEY = "feedback_schema_migrations_v2";
+const FEEDBACK_SCHEMA_MIGRATIONS_KEY = "feedback_schema_migrations_v3";
 
 // Helper to safely add a column if it doesn't exist
 async function addColumnIfNotExists(table: string, column: string, definition: string) {
@@ -27,6 +27,30 @@ async function addColumnIfNotExists(table: string, column: string, definition: s
     } else {
       console.log(`Migration note for ${table}.${column}:`, errorMessage);
     }
+  }
+}
+
+// Keep only the newest row per external issue key before enforcing uniqueness.
+async function removeDuplicateExternalFeedbackRows() {
+  try {
+    await db.execute(`
+      DELETE FROM feedback
+      WHERE external_source IS NOT NULL
+        AND TRIM(external_source) <> ''
+        AND external_id IS NOT NULL
+        AND TRIM(external_id) <> ''
+        AND id NOT IN (
+          SELECT MAX(id)
+          FROM feedback
+          WHERE external_source IS NOT NULL
+            AND TRIM(external_source) <> ''
+            AND external_id IS NOT NULL
+            AND TRIM(external_id) <> ''
+          GROUP BY external_source, external_id
+        )
+    `);
+  } catch (error) {
+    console.log("External feedback dedupe warning:", error);
   }
 }
 
@@ -112,6 +136,9 @@ async function runMigrations() {
   await addColumnIfNotExists("feedback", "performance_info", "TEXT");
   await addColumnIfNotExists("feedback", "emergency_crash_reports", "TEXT");
   await addColumnIfNotExists("feedback", "display_count", "INTEGER DEFAULT 0");
+  await addColumnIfNotExists("feedback", "external_source", "TEXT");
+  await addColumnIfNotExists("feedback", "external_id", "TEXT");
+  await addColumnIfNotExists("feedback", "external_url", "TEXT");
 
   await ensureFeedbackDiagnosticsTables(db);
 
@@ -173,6 +200,9 @@ export async function initDatabase() {
       display_count INTEGER DEFAULT 0,
       has_screenshot INTEGER DEFAULT 0,
       screenshot_data BLOB,
+      external_source TEXT,
+      external_id TEXT,
+      external_url TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
@@ -181,14 +211,35 @@ export async function initDatabase() {
   // Run migrations for existing tables (add columns if they don't exist)
   await runMigrations();
 
+  // Safety migration: older DBs may have migration state marked complete before
+  // external-link columns were introduced. Ensure these columns exist before
+  // creating the composite index below.
+  await addColumnIfNotExists("feedback", "external_source", "TEXT");
+  await addColumnIfNotExists("feedback", "external_id", "TEXT");
+  await addColumnIfNotExists("feedback", "external_url", "TEXT");
+
   // Add indexes for performance (only after migrations ensure columns exist)
+  await removeDuplicateExternalFeedbackRows();
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback(priority)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(type)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_is_read ON feedback(is_read)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at DESC)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_updated_at ON feedback(updated_at DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_status_updated_at ON feedback(status, updated_at DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_type_updated_at ON feedback(type, updated_at DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_priority_updated_at ON feedback(priority, updated_at DESC)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_diagnostics_timestamp ON feedback(diagnostics_timestamp DESC)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_display_count ON feedback(display_count)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_external_source_id ON feedback(external_source, external_id)`);
+  await db.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_external_source_id_unique
+    ON feedback(external_source, external_id)
+    WHERE external_source IS NOT NULL
+      AND TRIM(external_source) <> ''
+      AND external_id IS NOT NULL
+      AND TRIM(external_id) <> ''
+  `);
 
   // Create feedback_notes table for comments
   await db.execute(`
@@ -227,4 +278,9 @@ export async function initDatabase() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // Download analytics indexes
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_downloads_created_at ON downloads(created_at DESC)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_downloads_os ON downloads(os)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_downloads_source ON downloads(source)`);
 }

@@ -6,6 +6,8 @@ import { StatsCards } from "@/components/admin/analytics/stats-cards";
 import { DownloadChart } from "@/components/admin/analytics/download-chart";
 import { RecentDownloads } from "@/components/admin/analytics/recent-downloads";
 import { TimeSeriesChart, generateHourlyData, generateDailyData } from "@/components/admin/analytics/time-series-chart";
+import { VersionProgression } from "@/components/admin/analytics/version-progression";
+import { authFetch } from "@/lib/client-api";
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<DownloadStats | null>(null);
@@ -14,7 +16,7 @@ export default function AnalyticsPage() {
   const fetchStats = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/downloads/track");
+      const res = await authFetch("/api/analytics");
       const data: DownloadStats = await res.json();
       setStats(data);
     } catch (error) {
@@ -172,6 +174,20 @@ function AnalyticsContent({ stats }: { stats: DownloadStats }) {
             color="bg-green-500"
           />
         </div>
+      </section>
+
+      {/* Version Progression Section */}
+      <section className="animate-fade-in" style={{ animationDelay: "260ms" }}>
+        {stats.r2VersionHistory ? (
+          <VersionProgression history={stats.r2VersionHistory} />
+        ) : stats.r2VersionHistoryError ? (
+          <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-6">
+            <h3 className="text-lg font-semibold mb-2">Version History Progression</h3>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              Cloudflare R2 analytics unavailable: {stats.r2VersionHistoryError}
+            </p>
+          </div>
+        ) : null}
       </section>
 
       {/* Recent Downloads Section */}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FeedbackItem, FeedbackStatus, FeedbackPriority, STATUS_CONFIG, PRIORITY_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
+import { FeedbackItem, FeedbackStatus, FeedbackPriority, STATUS_CONFIG, PRIORITY_CONFIG, SOURCE_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
+import { getDisplayDescription } from "@/lib/feedback-display";
 
 type SortField = "id" | "type" | "status" | "priority" | "createdAt";
 type SortDirection = "asc" | "desc";
@@ -15,6 +16,7 @@ interface ListViewProps {
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
   onUpdatePriority: (id: number, priority: FeedbackPriority) => Promise<void>;
   onLoadMore: () => void;
+  onIssueHover?: (issueId: number) => void;
 }
 
 export function ListView({
@@ -26,6 +28,7 @@ export function ListView({
   onUpdateStatus,
   onUpdatePriority,
   onLoadMore,
+  onIssueHover,
 }: ListViewProps) {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -78,7 +81,7 @@ export function ListView({
         comparison = a.type.localeCompare(b.type);
         break;
       case "status":
-        const statusOrder = { open: 0, in_progress: 1, to_notify: 2, resolved: 3, closed: 4 };
+        const statusOrder = { open: 0, in_progress: 1, to_notify: 2, notified: 3, resolved: 4, closed: 5, back_burner: 6 };
         comparison = statusOrder[a.status] - statusOrder[b.status];
         break;
       case "priority":
@@ -123,12 +126,15 @@ export function ListView({
           <tbody>
             {sortedIssues.map((issue, index) => {
               const typeConfig = TYPE_CONFIG[issue.type] || { label: issue.type, color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
+              const sourceConfig = SOURCE_CONFIG[issue.externalSource] || SOURCE_CONFIG.app;
               const isSelected = selectedId === issue.id;
 
               return (
                 <tr
                   key={issue.id}
+                  data-feedback-select-trigger="true"
                   onClick={() => onSelect(issue)}
+                  onMouseEnter={() => onIssueHover?.(issue.id)}
                   className={`border-b border-[hsl(var(--border))] cursor-pointer transition-all duration-200 animate-card-enter ${
                     isSelected
                       ? "bg-[hsl(var(--primary))]/10 shadow-inner"
@@ -140,12 +146,17 @@ export function ListView({
                     {issue.id}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded border ${typeConfig.color}`}>
-                      {issue.type === "Bug Report" ? "Bug" : issue.type === "Feature Request" ? "Feature" : "Question"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded border ${typeConfig.color}`}>
+                        {issue.type === "Bug Report" ? "Bug" : issue.type === "Feature Request" ? "Feature" : "Question"}
+                      </span>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded border ${sourceConfig.color}`}>
+                        {sourceConfig.label}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm max-w-md">
-                    <p className="line-clamp-1">{issue.description}</p>
+                    <p className="line-clamp-1">{getDisplayDescription(issue.description)}</p>
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <select

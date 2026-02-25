@@ -1,15 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { FeedbackItem, FeedbackStatus, FeedbackPriority, FeedbackNote, STATUS_CONFIG, PRIORITY_CONFIG, TYPE_CONFIG, getTagColor } from "@/lib/types/feedback";
+import { useState, useEffect, useRef } from "react";
+import { FeedbackItem, FeedbackStatus, FeedbackPriority, FeedbackNote, STATUS_CONFIG, PRIORITY_CONFIG, SOURCE_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
+import { authFetch } from "@/lib/client-api";
+import { getDisplayDescription } from "@/lib/feedback-display";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface IssueDetailProps {
   issue: FeedbackItem | null;
   onClose: () => void;
   onUpdate: (id: number, updates: { status?: FeedbackStatus; priority?: FeedbackPriority; tags?: string[] }) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+  onLoadRecentLogs: (id: number) => Promise<void>;
+  isLoadingRecentLogs?: boolean;
+  hasLoadedRecentLogs?: boolean;
+  isLoadingDetail?: boolean;
 }
 
-export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
+export function IssueDetail({
+  issue,
+  onClose,
+  onUpdate,
+  onDelete,
+  onLoadRecentLogs,
+  isLoadingRecentLogs = false,
+  hasLoadedRecentLogs = false,
+  isLoadingDetail = false,
+}: IssueDetailProps) {
   const [expandedLogs, setExpandedLogs] = useState(false);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const [copiedErrors, setCopiedErrors] = useState(false);
@@ -24,9 +48,13 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
   const [newComment, setNewComment] = useState("");
   const [authorName, setAuthorName] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeletingIssue, setIsDeletingIssue] = useState(false);
+  const [deleteIssueError, setDeleteIssueError] = useState<string | null>(null);
 
-  // Tags state
-  const [newTag, setNewTag] = useState("");
+  const [screenshotObjectUrl, setScreenshotObjectUrl] = useState<string | null>(null);
+  const [isScreenshotLoading, setIsScreenshotLoading] = useState(false);
+  const screenshotObjectUrlRef = useRef<string | null>(null);
 
   // Load author name from localStorage (default to "haseab")
   useEffect(() => {
@@ -54,11 +82,81 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
       setExpandedLogs(false);
       setExpandedCrashReports(false);
       setExpandedSettings(false);
+      setDeleteDialogOpen(false);
+      setDeleteIssueError(null);
       fetchComments(issue.id);
     } else {
       setComments([]);
     }
   }, [issue?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const revokeExistingScreenshotUrl = () => {
+      if (!screenshotObjectUrlRef.current) {
+        return;
+      }
+
+      URL.revokeObjectURL(screenshotObjectUrlRef.current);
+      screenshotObjectUrlRef.current = null;
+    };
+
+    const loadScreenshot = async () => {
+      if (!issue || !issue.hasScreenshot) {
+        revokeExistingScreenshotUrl();
+        setScreenshotObjectUrl(null);
+        setIsScreenshotLoading(false);
+        return;
+      }
+
+      setIsScreenshotLoading(true);
+
+      try {
+        const res = await authFetch(`/api/feedback/${issue.id}/screenshot`);
+        if (!res.ok) {
+          throw new Error(`Failed to fetch screenshot: ${res.status}`);
+        }
+
+        const screenshotBlob = await res.blob();
+        const objectUrl = URL.createObjectURL(screenshotBlob);
+
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        revokeExistingScreenshotUrl();
+        screenshotObjectUrlRef.current = objectUrl;
+        setScreenshotObjectUrl(objectUrl);
+      } catch (error) {
+        console.error("Failed to fetch screenshot:", error);
+        revokeExistingScreenshotUrl();
+        setScreenshotObjectUrl(null);
+      } finally {
+        if (!cancelled) {
+          setIsScreenshotLoading(false);
+        }
+      }
+    };
+
+    void loadScreenshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [issue?.id, issue?.hasScreenshot]);
+
+  useEffect(() => {
+    return () => {
+      if (!screenshotObjectUrlRef.current) {
+        return;
+      }
+
+      URL.revokeObjectURL(screenshotObjectUrlRef.current);
+      screenshotObjectUrlRef.current = null;
+    };
+  }, []);
 
   const handleCloseModal = () => {
     if (screenshotModalOpen && !isModalClosing) {
@@ -84,7 +182,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
   const fetchComments = async (feedbackId: number) => {
     setLoadingComments(true);
     try {
-      const res = await fetch(`/api/feedback/${feedbackId}/notes`);
+      const res = await authFetch(`/api/feedback/${feedbackId}/notes`);
       const data = await res.json();
       setComments(data.notes || []);
     } catch (error) {
@@ -112,7 +210,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
     setIsSubmittingComment(true);
 
     try {
-      const res = await fetch(`/api/feedback/${issue.id}/notes`, {
+      const res = await authFetch(`/api/feedback/${issue.id}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,7 +242,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
     if (!issue) return;
 
     try {
-      const res = await fetch(`/api/feedback/${issue.id}/notes/${noteId}`, {
+      const res = await authFetch(`/api/feedback/${issue.id}/notes/${noteId}`, {
         method: "DELETE",
       });
 
@@ -153,6 +251,23 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
       }
     } catch (error) {
       console.error("Failed to delete comment:", error);
+    }
+  };
+
+  const handleDeleteIssue = async () => {
+    if (!issue || isDeletingIssue) return;
+
+    setIsDeletingIssue(true);
+    setDeleteIssueError(null);
+
+    try {
+      await onDelete(issue.id);
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to delete issue:", error);
+      setDeleteIssueError(error instanceof Error ? error.message : "Failed to delete issue.");
+    } finally {
+      setIsDeletingIssue(false);
     }
   };
 
@@ -167,6 +282,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
   }
 
   const typeConfig = TYPE_CONFIG[issue.type] || { label: issue.type, color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
+  const sourceConfig = SOURCE_CONFIG[issue.externalSource] || SOURCE_CONFIG.app;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
@@ -201,26 +317,11 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
     await onUpdate(issue.id, { priority: newPriority });
   };
 
-  const handleAddTag = async () => {
-    if (!issue || !newTag.trim()) return;
-    const trimmedTag = newTag.trim().toLowerCase();
-    if (issue.tags.includes(trimmedTag)) {
-      setNewTag("");
-      return;
-    }
-    const updatedTags = [...issue.tags, trimmedTag];
-    setNewTag(""); // Clear immediately for better UX
-    await onUpdate(issue.id, { tags: updatedTags });
-  };
-
-  const handleRemoveTag = async (tagToRemove: string) => {
-    if (!issue) return;
-    const updatedTags = issue.tags.filter((tag) => tag !== tagToRemove);
-    await onUpdate(issue.id, { tags: updatedTags });
-  };
-
-  const gmailReplyHref = issue.email
-    ? buildGmailReplyHref(issue.email, issue.type, issue.description)
+  const contactValue = issue.email?.trim() ?? "";
+  const isEmailContact = contactValue.includes("@") && !contactValue.includes(" ");
+  const isUrlContact = /^https?:\/\//i.test(contactValue);
+  const gmailReplyHref = isEmailContact
+    ? buildGmailReplyHref(contactValue, issue.type, issue.description)
     : null;
 
   const handleCopyLogs = async () => {
@@ -251,23 +352,37 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
   const displayCount = Math.max(issue.displayCount ?? 0, issue.displayInfo.displays.length);
 
   return (
-    <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+    <div className="relative bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] max-h-[calc(100vh-200px)] flex flex-col overflow-hidden">
+      <div className="shrink-0 z-20 px-6 py-2 bg-[hsl(var(--card))] flex justify-end">
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-[hsl(var(--secondary))] rounded transition-colors"
+          aria-label="Close issue details"
+        >
+          <XIcon className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-6 pt-2">
+      {isLoadingDetail && (
+        <div className="mb-3 text-xs text-[hsl(var(--muted-foreground))]">
+          Loading full diagnostics...
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`px-3 py-1 text-sm font-medium rounded border ${typeConfig.color}`}>
             {typeConfig.label}
           </span>
+          <span className={`px-3 py-1 text-sm font-medium rounded border ${sourceConfig.color}`}>
+            {sourceConfig.label}
+          </span>
           <span className="text-sm text-[hsl(var(--muted-foreground))]">
             #{issue.id}
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 hover:bg-[hsl(var(--secondary))] rounded transition-colors"
-        >
-          <XIcon className="w-5 h-5" />
-        </button>
       </div>
 
       {/* ============================================== */}
@@ -281,38 +396,80 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
           </h2>
         </div>
         <div className="border border-blue-500/20 rounded-lg p-4 bg-blue-500/5 space-y-4">
+          {/* Source */}
+          <div>
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
+              Source
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className={`px-2 py-1 font-medium rounded border ${sourceConfig.color}`}>
+                {sourceConfig.label}
+              </span>
+              {issue.externalId && (
+                <span className="px-2 py-1 bg-[hsl(var(--secondary))] rounded">
+                  ID: {issue.externalId}
+                </span>
+              )}
+              {issue.externalUrl && (
+                <a
+                  href={issue.externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 bg-[hsl(var(--secondary))] rounded text-[hsl(var(--primary))] hover:underline"
+                >
+                  Open source link
+                </a>
+              )}
+            </div>
+          </div>
+
           {/* Description */}
           <div>
             <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
               Description
             </h3>
             <p className="text-sm whitespace-pre-wrap bg-[hsl(var(--secondary))] rounded-lg p-3">
-              {issue.description}
+              {getDisplayDescription(issue.description)}
             </p>
           </div>
 
-          {/* Email */}
+          {/* Contact */}
           {issue.email && (
             <div>
               <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
-                Contact Email
+                Contact
               </h3>
               <div className="flex items-center gap-3">
-                <a
-                  href={`mailto:${issue.email}`}
-                  className="text-sm text-[hsl(var(--primary))] hover:underline"
-                >
-                  {issue.email}
-                </a>
-                <a
-                  href={gmailReplyHref ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-xs hover:bg-[hsl(var(--secondary))]/80 transition-all duration-200 hover:scale-105 active:scale-95"
-                >
-                  <GmailIcon className="w-3.5 h-3.5" />
-                  Reply via Gmail
-                </a>
+                {isEmailContact ? (
+                  <>
+                    <a
+                      href={`mailto:${contactValue}`}
+                      className="text-sm text-[hsl(var(--primary))] hover:underline"
+                    >
+                      {contactValue}
+                    </a>
+                    <a
+                      href={gmailReplyHref ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-xs hover:bg-[hsl(var(--secondary))]/80 transition-all duration-200 hover:scale-105 active:scale-95"
+                    >
+                      <GmailIcon className="w-3.5 h-3.5" />
+                      Reply via Gmail
+                    </a>
+                  </>
+                ) : isUrlContact ? (
+                  <a
+                    href={contactValue}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[hsl(var(--primary))] hover:underline break-all"
+                  >
+                    {contactValue}
+                  </a>
+                ) : (
+                  <span className="text-sm break-all">{contactValue}</span>
+                )}
               </div>
             </div>
           )}
@@ -327,32 +484,44 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
                 </h3>
                 <div className="flex items-center gap-2">
                   <a
-                    href={`/api/feedback/${issue.id}/screenshot`}
+                    href={screenshotObjectUrl || "#"}
                     download={`feedback-${issue.id}-screenshot.png`}
-                    className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-white transition-colors"
+                    onClick={(event) => {
+                      if (!screenshotObjectUrl) {
+                        event.preventDefault();
+                      }
+                    }}
+                    className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-white transition-colors disabled:opacity-50"
                   >
                     <DownloadIcon className="w-3 h-3" />
                     Download
                   </a>
                   <button
                     onClick={() => setScreenshotModalOpen(true)}
+                    disabled={!screenshotObjectUrl}
                     className="text-xs text-[hsl(var(--primary))] hover:underline"
                   >
                     Full Screen
                   </button>
                 </div>
               </div>
-              <div
-                className="bg-[hsl(var(--secondary))] rounded-lg p-2 overflow-hidden cursor-pointer transition-all max-h-40"
-                onClick={() => setScreenshotModalOpen(true)}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/feedback/${issue.id}/screenshot`}
-                  alt="Feedback screenshot"
-                  className="w-full rounded object-cover max-h-36"
-                />
-              </div>
+              {!screenshotObjectUrl ? (
+                <div className="bg-[hsl(var(--secondary))] rounded-lg p-3 text-xs text-[hsl(var(--muted-foreground))]">
+                  {isScreenshotLoading ? "Loading screenshot..." : "Screenshot unavailable."}
+                </div>
+              ) : (
+                <div
+                  className="bg-[hsl(var(--secondary))] rounded-lg p-2 overflow-hidden cursor-pointer transition-all max-h-40"
+                  onClick={() => setScreenshotModalOpen(true)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={screenshotObjectUrl}
+                    alt="Feedback screenshot"
+                    className="w-full rounded object-cover max-h-36"
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -382,7 +551,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
       </div>
 
       {/* Screenshot Modal */}
-      {screenshotModalOpen && issue.hasScreenshot && (
+      {screenshotModalOpen && issue.hasScreenshot && screenshotObjectUrl && (
         <div
           className={`fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm ${isModalClosing ? "animate-fade-out" : "animate-fade-in"}`}
           onClick={handleCloseModal}
@@ -396,7 +565,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
           </button>
           {/* Download button */}
           <a
-            href={`/api/feedback/${issue.id}/screenshot`}
+            href={screenshotObjectUrl}
             download={`feedback-${issue.id}-screenshot.png`}
             onClick={(e) => e.stopPropagation()}
             className="absolute top-4 right-16 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"
@@ -410,7 +579,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`/api/feedback/${issue.id}/screenshot`}
+              src={screenshotObjectUrl}
               alt="Feedback screenshot"
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
@@ -462,54 +631,6 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
-              Tags
-            </label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {issue.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className={`px-2 py-0.5 text-xs font-medium rounded border flex items-center gap-1 transition-all duration-200 hover:scale-105 ${getTagColor(tag)}`}
-                >
-                  {tag}
-                  <button
-                    onClick={() => handleRemoveTag(tag)}
-                    className="hover:opacity-70 transition-opacity"
-                  >
-                    <XIcon className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              {issue.tags.length === 0 && (
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">No tags</span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Add a tag..."
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                className="flex-1 px-3 py-1.5 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] transition-all duration-200"
-              />
-              <button
-                onClick={handleAddTag}
-                disabled={!newTag.trim()}
-                className="px-3 py-1.5 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-sm hover:bg-[hsl(var(--secondary))]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95"
-              >
-                <PlusIcon className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
@@ -938,12 +1059,12 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
           )}
 
           {/* Recent Logs */}
-          {issue.recentLogs.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                  Recent Logs ({issue.recentLogs.length})
-                </h3>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                {hasLoadedRecentLogs ? `Recent Logs (${issue.recentLogs.length})` : "Recent Logs"}
+              </h3>
+              {hasLoadedRecentLogs && issue.recentLogs.length > 0 && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCopyLogs}
@@ -970,7 +1091,19 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
                     </button>
                   )}
                 </div>
-              </div>
+              )}
+            </div>
+
+            {!hasLoadedRecentLogs ? (
+              <button
+                type="button"
+                onClick={() => void onLoadRecentLogs(issue.id)}
+                disabled={isLoadingRecentLogs}
+                className="px-2.5 py-1.5 text-[10px] rounded border border-[hsl(var(--border))] bg-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))]/80 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoadingRecentLogs ? "Loading recent logs..." : "Load recent logs"}
+              </button>
+            ) : issue.recentLogs.length > 0 ? (
               <div className={`bg-[hsl(var(--secondary))] rounded-lg p-2 overflow-y-auto ${expandedLogs ? "max-h-[400px]" : "max-h-32"}`}>
                 <pre className="text-[10px] text-[hsl(var(--muted-foreground))] whitespace-pre-wrap">
                   {expandedLogs
@@ -983,9 +1116,77 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
                   )}
                 </pre>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                No recent logs captured.
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* ============================================== */}
+      {/* DANGER ZONE */}
+      {/* ============================================== */}
+      <div className="mt-6 border border-red-500/20 rounded-lg p-4 bg-red-500/5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-red-300">
+              Danger Zone
+            </h2>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+              Delete this issue and all notes permanently.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setDeleteIssueError(null);
+              setDeleteDialogOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-red-500/40 bg-red-500/20 text-red-200 hover:bg-red-500/30 transition-colors"
+          >
+            <TrashIcon className="w-3.5 h-3.5" />
+            Delete Issue
+          </button>
+        </div>
+      </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => !isDeletingIssue && setDeleteDialogOpen(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-300">
+              <TrashIcon className="w-4 h-4" />
+              Delete Issue #{issue.id}?
+            </DialogTitle>
+            <DialogDescription className="pt-1">
+              This will permanently delete this issue and all associated notes. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteIssueError && (
+            <p className="text-sm text-red-400">{deleteIssueError}</p>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeletingIssue}
+              className="px-3 py-2 text-sm rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--secondary))] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteIssue}
+              disabled={isDeletingIssue}
+              className="px-3 py-2 text-sm rounded-lg border border-red-500/40 bg-red-500/20 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+            >
+              {isDeletingIssue ? "Deleting..." : "Delete Permanently"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
@@ -1051,15 +1252,6 @@ function DownloadIcon({ className }: { className?: string }) {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }
