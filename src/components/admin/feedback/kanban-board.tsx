@@ -17,7 +17,7 @@ import { FeedbackItem, FeedbackStatus } from "@/lib/types/feedback";
 import { KanbanColumn } from "./kanban-column";
 import { IssueCard } from "./issue-card";
 
-const STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "closed"];
+const STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "resolved", "closed"];
 
 interface KanbanBoardProps {
   issuesByStatus: Record<FeedbackStatus, FeedbackItem[]>;

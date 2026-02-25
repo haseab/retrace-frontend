@@ -148,6 +148,7 @@ function StatusDot({ status }: { status: FeedbackStatus }) {
   const colors: Record<FeedbackStatus, string> = {
     open: "bg-blue-500 shadow-blue-500/50",
     in_progress: "bg-yellow-500 shadow-yellow-500/50",
+    to_notify: "bg-violet-500 shadow-violet-500/50",
     resolved: "bg-green-500 shadow-green-500/50",
     closed: "bg-gray-500",
   };

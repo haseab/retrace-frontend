@@ -79,7 +79,7 @@ export interface FeedbackApiItem {
   email: string | null;
   description: string;
   isRead: boolean;
-  status: "open" | "in_progress" | "resolved" | "closed";
+  status: "open" | "in_progress" | "to_notify" | "resolved" | "closed";
   priority: "low" | "medium" | "high" | "critical";
   notes: string;
   tags: string[];
@@ -128,7 +128,7 @@ export interface NormalizedDiagnosticsState {
   recentErrors: string[];
 }
 
-const VALID_STATUSES = new Set(["open", "in_progress", "resolved", "closed"]);
+const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "resolved", "closed"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 
 export const DEFAULT_DISPLAY_INFO: FeedbackDisplayInfo = {

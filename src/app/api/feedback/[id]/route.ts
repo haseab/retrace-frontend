@@ -35,7 +35,7 @@ export async function PATCH(
     let shouldUpdateTimestamp = false;
 
     if (status !== undefined) {
-      const validStatuses = ["open", "in_progress", "resolved", "closed"];
+      const validStatuses = ["open", "in_progress", "to_notify", "resolved", "closed"];
       if (!validStatuses.includes(status)) {
         return NextResponse.json(
           { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },

@@ -219,6 +219,10 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
     await onUpdate(issue.id, { tags: updatedTags });
   };
 
+  const gmailReplyHref = issue.email
+    ? buildGmailReplyHref(issue.email, issue.type, issue.description)
+    : null;
+
   const handleCopyLogs = async () => {
     if (!issue) return;
     await navigator.clipboard.writeText(issue.recentLogs.join("\n"));
@@ -301,7 +305,7 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
                   {issue.email}
                 </a>
                 <a
-                  href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(issue.email)}&su=${encodeURIComponent(`Re: Your ${issue.type} for Retrace`)}&body=${encodeURIComponent(`Hi,\n\nThanks for reaching out about Retrace.\n\n\n---\nOriginal message:\n${issue.description}`)}`}
+                  href={gmailReplyHref ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-2.5 py-1 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-xs hover:bg-[hsl(var(--secondary))]/80 transition-all duration-200 hover:scale-105 active:scale-95"
@@ -985,6 +989,15 @@ export function IssueDetail({ issue, onClose, onUpdate }: IssueDetailProps) {
       </div>
     </div>
   );
+}
+
+function buildGmailReplyHref(email: string, issueType: string, issueDescription: string): string {
+  const subject = `Re: Your ${issueType} for Retrace`;
+  const body = `Hi,\n\nThanks for reaching out about Retrace.\n\n\n---\nOriginal message:\n${issueDescription}`;
+  const mailtoTarget = `mailto:${email}?subject=${subject}&body=${body}`;
+
+  // This opens the draft in Gmail's standard inbox UI instead of the compose-only view.
+  return `https://mail.google.com/mail/?extsrc=mailto&url=${encodeURIComponent(mailtoTarget)}`;
 }
 
 function XIcon({ className }: { className?: string }) {

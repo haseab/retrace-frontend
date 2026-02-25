@@ -78,7 +78,7 @@ export function ListView({
         comparison = a.type.localeCompare(b.type);
         break;
       case "status":
-        const statusOrder = { open: 0, in_progress: 1, resolved: 2, closed: 3 };
+        const statusOrder = { open: 0, in_progress: 1, to_notify: 2, resolved: 3, closed: 4 };
         comparison = statusOrder[a.status] - statusOrder[b.status];
         break;
       case "priority":

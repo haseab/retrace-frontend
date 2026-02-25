@@ -7,7 +7,7 @@ import { KanbanBoard } from "@/components/admin/feedback/kanban-board";
 import { ListView } from "@/components/admin/feedback/list-view";
 import { IssueDetail } from "@/components/admin/feedback/issue-detail";
 
-const KANBAN_STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "closed"];
+const KANBAN_STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "resolved", "closed"];
 const KANBAN_PAGE_SIZE = 10;
 const LIST_PAGE_SIZE = 30;
 
@@ -27,6 +27,7 @@ function createEmptyIssuesByStatus(): Record<FeedbackStatus, FeedbackItem[]> {
   return {
     open: [],
     in_progress: [],
+    to_notify: [],
     resolved: [],
     closed: [],
   };
@@ -36,6 +37,7 @@ function createEmptyColumnPagination(): Record<FeedbackStatus, ColumnPaginationS
   return {
     open: { hasMore: false, isLoading: false },
     in_progress: { hasMore: false, isLoading: false },
+    to_notify: { hasMore: false, isLoading: false },
     resolved: { hasMore: false, isLoading: false },
     closed: { hasMore: false, isLoading: false },
   };
@@ -84,9 +86,11 @@ export default function FeedbackPage() {
   const kanbanLoadMoreInFlightRef = useRef<Record<FeedbackStatus, boolean>>({
     open: false,
     in_progress: false,
+    to_notify: false,
     resolved: false,
     closed: false,
   });
+  const statusMutationVersionRef = useRef<Record<number, number>>({});
 
   const fetchFeedbackPage = useCallback(async ({
     limit,
@@ -196,6 +200,7 @@ export default function FeedbackPage() {
     kanbanLoadMoreInFlightRef.current = {
       open: false,
       in_progress: false,
+      to_notify: false,
       resolved: false,
       closed: false,
     };
@@ -205,6 +210,7 @@ export default function FeedbackPage() {
     setKanbanPagination({
       open: { hasMore: false, isLoading: true },
       in_progress: { hasMore: false, isLoading: true },
+      to_notify: { hasMore: false, isLoading: true },
       resolved: { hasMore: false, isLoading: true },
       closed: { hasMore: false, isLoading: true },
     });
@@ -368,6 +374,7 @@ export default function FeedbackPage() {
       const next: Record<FeedbackStatus, FeedbackItem[]> = {
         open: prev.open.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         in_progress: prev.in_progress.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
+        to_notify: prev.to_notify.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         resolved: prev.resolved.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
         closed: prev.closed.map((issue) => (issue.id === id ? { ...issue, ...patch } : issue)),
       };
@@ -407,6 +414,28 @@ export default function FeedbackPage() {
   }, [filters.status, view]);
 
   const handleUpdateStatus = async (id: number, status: FeedbackStatus) => {
+    const previousIssueFromKanban = KANBAN_STATUSES.reduce<FeedbackItem | null>((found, columnStatus) => {
+      if (found) {
+        return found;
+      }
+      return kanbanIssuesByStatus[columnStatus].find((issue) => issue.id === id) ?? null;
+    }, null);
+    const previousIssue = selectedIssue?.id === id
+      ? selectedIssue
+      : (listIssues.find((issue) => issue.id === id) ?? previousIssueFromKanban);
+
+    if (previousIssue?.status === status) {
+      return;
+    }
+
+    const mutationVersion = (statusMutationVersionRef.current[id] ?? 0) + 1;
+    statusMutationVersionRef.current[id] = mutationVersion;
+
+    applyIssuePatchLocally(id, {
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+
     try {
       const res = await fetch(`/api/feedback/${id}`, {
         method: "PATCH",
@@ -417,13 +446,14 @@ export default function FeedbackPage() {
       if (!res.ok) {
         throw new Error("Failed to update status");
       }
-
-      applyIssuePatchLocally(id, {
-        status,
-        updatedAt: new Date().toISOString(),
-      });
     } catch (error) {
       console.error("Failed to update status:", error);
+      if (previousIssue && statusMutationVersionRef.current[id] === mutationVersion) {
+        applyIssuePatchLocally(id, {
+          status: previousIssue.status,
+          updatedAt: previousIssue.updatedAt,
+        });
+      }
     }
   };
 
@@ -553,12 +583,14 @@ export default function FeedbackPage() {
                 hasMoreByStatus={{
                   open: kanbanPagination.open.hasMore,
                   in_progress: kanbanPagination.in_progress.hasMore,
+                  to_notify: kanbanPagination.to_notify.hasMore,
                   resolved: kanbanPagination.resolved.hasMore,
                   closed: kanbanPagination.closed.hasMore,
                 }}
                 isLoadingByStatus={{
                   open: kanbanPagination.open.isLoading,
                   in_progress: kanbanPagination.in_progress.isLoading,
+                  to_notify: kanbanPagination.to_notify.isLoading,
                   resolved: kanbanPagination.resolved.isLoading,
                   closed: kanbanPagination.closed.isLoading,
                 }}

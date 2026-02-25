@@ -1,5 +1,5 @@
 export type FeedbackType = "Bug Report" | "Feature Request" | "Question";
-export type FeedbackStatus = "open" | "in_progress" | "resolved" | "closed";
+export type FeedbackStatus = "open" | "in_progress" | "to_notify" | "resolved" | "closed";
 export type FeedbackPriority = "low" | "medium" | "high" | "critical";
 export type ViewMode = "kanban" | "list";
 
@@ -121,6 +121,7 @@ export interface FeedbackResponse {
 export const STATUS_CONFIG: Record<FeedbackStatus, { label: string; color: string }> = {
   open: { label: "Open", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
   in_progress: { label: "In Progress", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  to_notify: { label: "To Notify", color: "bg-violet-500/20 text-violet-400 border-violet-500/30" },
   resolved: { label: "Resolved", color: "bg-green-500/20 text-green-400 border-green-500/30" },
   closed: { label: "Closed", color: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
 };

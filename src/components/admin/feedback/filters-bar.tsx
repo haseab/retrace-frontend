@@ -56,6 +56,7 @@ export function FiltersBar({
           <option value="all">All Statuses</option>
           <option value="open">Open</option>
           <option value="in_progress">In Progress</option>
+          <option value="to_notify">To Notify</option>
           <option value="resolved">Resolved</option>
           <option value="closed">Closed</option>
         </select>
