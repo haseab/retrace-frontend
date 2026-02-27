@@ -10,6 +10,49 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.7.6</title>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>0.7.6</sparkle:shortVersionString>
+            <pubDate>Fri, 27 Feb 2026 02:54:24 +0000</pubDate>
+            <description><![CDATA[
+<h2>Retrace v0.7.6</h2>
+<p>This release improves sleep/wake reliability, adds deeper power diagnostics, and tightens timeline/search behavior.</p>
+
+<h3>Power & Performance</h3>
+<ul>
+  <li><strong>New CPU monitor in Settings → Power:</strong> View cumulative per-process CPU usage over the last 24 hours, including average and peak usage.</li>
+  <li><strong>OCR processing rebalance:</strong> Updated processing-level behavior for better default efficiency in Balanced mode.</li>
+</ul>
+
+<h3>Stability</h3>
+<ul>
+  <li><strong>Sleep/wake watchdog hardening:</strong> Prevented false auto-quit events during system sleep and improved auto-relaunch safeguards.</li>
+  <li><strong>Capture pipeline optimization:</strong> Reduced unnecessary metadata work by enriching frames after dedup decisions.</li>
+</ul>
+
+<h3>Timeline & Search</h3>
+<ul>
+  <li><strong>Focus restoration:</strong> Closing the timeline now returns focus to the app that was frontmost before opening it.</li>
+  <li><strong>Search precision improvements:</strong> Better handling for quoted phrases and short/common terms, with cleaner timeline text highlighting.</li>
+  <li><strong>Date range filter UX:</strong> Calendar range selections now auto-apply (no extra Apply step).</li>
+  <li><strong>State expiry cleanup:</strong> Timeline filter and search cache expiration is now consistent after hidden periods.</li>
+</ul>
+
+<h3>Onboarding & UI Polish</h3>
+<ul>
+  <li><strong>Pause reminder fix:</strong> Pause reminders are now suppressed until onboarding is complete.</li>
+  <li><strong>Milestone dialog updates:</strong> Restored creator profile assets and added Discord follow-up/join flow.</li>
+  <li><strong>Context menu polish:</strong> Improved timeline menu sizing and tag-row readability.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.7.6.dmg"
+                sparkle:edSignature="hAC+l+16lhVkio3gJhODHdiej6aAjq+uKoypWMbP5BHj7ACkdaSDtZwZZqkZlMDVBD8amDJusSlcoLcEpRgnBw=="
+                length="9776260"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.7.5</title>
             <sparkle:version>7</sparkle:version>
             <sparkle:shortVersionString>0.7.5</sparkle:shortVersionString>
