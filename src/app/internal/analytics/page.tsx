@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { DownloadStats } from "@/lib/types/feedback";
 import { StatsCards } from "@/components/admin/analytics/stats-cards";
 import { DownloadChart } from "@/components/admin/analytics/download-chart";
@@ -9,11 +9,15 @@ import { TimeSeriesChart, generateHourlyData, generateDailyData } from "@/compon
 import { VersionProgression } from "@/components/admin/analytics/version-progression";
 import { authFetch } from "@/lib/client-api";
 
+const FOCUS_REFRESH_COOLDOWN_MS = 10_000;
+
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<DownloadStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const focusRefreshInFlightRef = useRef(false);
+  const lastFocusRefreshAtRef = useRef(0);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await authFetch("/api/analytics");
@@ -24,11 +28,44 @@ export default function AnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    void fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      const now = Date.now();
+      if (focusRefreshInFlightRef.current || now - lastFocusRefreshAtRef.current < FOCUS_REFRESH_COOLDOWN_MS) {
+        return;
+      }
+
+      focusRefreshInFlightRef.current = true;
+      lastFocusRefreshAtRef.current = now;
+      void fetchStats().finally(() => {
+        focusRefreshInFlightRef.current = false;
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshOnFocus();
+      }
+    };
+
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchStats]);
 
   return (
     <div className="p-8">
