@@ -1352,35 +1352,18 @@ export default function FeedbackPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportForLlm}
-              disabled={isExporting || !selectedIssue}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--secondary))] text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              <DownloadIcon className={`w-4 h-4 ${isExporting ? "animate-pulse" : ""}`} />
-              {isExporting ? "Exporting..." : "Export Selected Issue"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsCreateFormOpen((prev) => !prev)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <PlusIcon className="w-4 h-4" />
-              {isCreateFormOpen ? "Close Form" : "New Issue"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCreateFormOpen((prev) => !prev)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <PlusIcon className="w-4 h-4" />
+            {isCreateFormOpen ? "Close Form" : "New Issue"}
+          </button>
         </div>
         <p className="text-[hsl(var(--muted-foreground))] mt-1 ml-10">
           Track and manage bug reports, feature requests, and questions
         </p>
-        {exportMessage && (
-          <p className="text-[hsl(var(--muted-foreground))] text-xs mt-2 ml-10">
-            {exportMessage}
-          </p>
-        )}
       </div>
 
       {/* Filters */}
@@ -1483,6 +1466,9 @@ export default function FeedbackPage() {
                   onUpdate={handleUpdate}
                   onDelete={handleDeleteIssue}
                   onLoadRecentLogs={handleLoadRecentLogs}
+                  onDownload={handleExportForLlm}
+                  isDownloading={isExporting}
+                  downloadMessage={exportMessage}
                   isLoadingRecentLogs={isSelectedIssueLogsLoading}
                   hasLoadedRecentLogs={hasSelectedIssueRecentLogs}
                   isLoadingDetail={isSelectedIssueDetailLoading}
@@ -1500,16 +1486,6 @@ function PlusIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
       <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function DownloadIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M5 21h14" />
     </svg>
   );
 }

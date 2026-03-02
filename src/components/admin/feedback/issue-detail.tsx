@@ -19,6 +19,9 @@ interface IssueDetailProps {
   onUpdate: (id: number, updates: { status?: FeedbackStatus; priority?: FeedbackPriority; tags?: string[] }) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onLoadRecentLogs: (id: number) => Promise<void>;
+  onDownload?: () => void;
+  isDownloading?: boolean;
+  downloadMessage?: string | null;
   isLoadingRecentLogs?: boolean;
   hasLoadedRecentLogs?: boolean;
   isLoadingDetail?: boolean;
@@ -30,6 +33,9 @@ export function IssueDetail({
   onUpdate,
   onDelete,
   onLoadRecentLogs,
+  onDownload,
+  isDownloading = false,
+  downloadMessage = null,
   isLoadingRecentLogs = false,
   hasLoadedRecentLogs = false,
   isLoadingDetail = false,
@@ -383,7 +389,22 @@ export function IssueDetail({
             #{issue.id}
           </span>
         </div>
+        {onDownload && (
+          <button
+            type="button"
+            onClick={onDownload}
+            disabled={isDownloading}
+            className="ml-3 shrink-0 px-3 py-1.5 rounded-lg bg-[hsl(var(--secondary))] text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {isDownloading ? "Downloading..." : "Download"}
+          </button>
+        )}
       </div>
+      {downloadMessage && (
+        <p className="mb-4 text-xs text-[hsl(var(--muted-foreground))] text-right">
+          {downloadMessage}
+        </p>
+      )}
 
       {/* ============================================== */}
       {/* USER SUBMITTED CONTENT */}
