@@ -25,8 +25,6 @@ const LIST_PAGE_SIZE = 30;
 const MIN_DETAIL_PANEL_WIDTH = 400;
 const DETAIL_PANEL_WIDTH_STORAGE_KEY = "internal_feedback_detail_panel_width_v1";
 const FOCUS_REFRESH_COOLDOWN_MS = 10_000;
-const EXPORT_PAGE_SIZE = 50;
-const EXPORT_DETAIL_BATCH_SIZE = 5;
 const EXPORT_SUMMARY_LINE_TARGET = 50;
 
 interface ExportIssueBundle {
@@ -857,32 +855,6 @@ export default function FeedbackPage() {
     void loadInitialKanban();
   }, [view, loadInitialKanban, loadInitialList]);
 
-  const fetchAllFeedbackSummariesForExport = useCallback(async (): Promise<FeedbackSummaryItem[]> => {
-    const allSummaries: FeedbackSummaryItem[] = [];
-    let offset = 0;
-
-    while (true) {
-      const data = await fetchFeedbackPage({
-        limit: EXPORT_PAGE_SIZE,
-        offset,
-        includeListStatusFilter: view === "list",
-      });
-      const pageItems = data.feedback || [];
-      if (pageItems.length === 0) {
-        break;
-      }
-
-      allSummaries.push(...pageItems);
-      if (!data.hasMore) {
-        break;
-      }
-
-      offset += pageItems.length;
-    }
-
-    return allSummaries;
-  }, [fetchFeedbackPage, view]);
-
   const fetchIssueNotesForExport = useCallback(async (id: number): Promise<FeedbackNote[]> => {
     const res = await authFetch(`/api/feedback/${id}/notes`);
     if (!res.ok) {
@@ -893,47 +865,13 @@ export default function FeedbackPage() {
     return Array.isArray(data.notes) ? data.notes : [];
   }, []);
 
-  const fetchDetailedIssuesForExport = useCallback(async (summaries: FeedbackSummaryItem[]) => {
-    const exportIssues: ExportIssueBundle[] = [];
-    let detailFallbackCount = 0;
-    let notesFallbackCount = 0;
-
-    for (let index = 0; index < summaries.length; index += EXPORT_DETAIL_BATCH_SIZE) {
-      const batch = summaries.slice(index, index + EXPORT_DETAIL_BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map(async (summary) => {
-          let issue: FeedbackItem;
-          try {
-            issue = await fetchIssueDetail(summary.id, true);
-          } catch (error) {
-            detailFallbackCount += 1;
-            console.error(`Failed to fetch full detail for export issue ${summary.id}:`, error);
-            issue = hydrateFeedbackSummary(summary);
-          }
-
-          let notesThread: FeedbackNote[] = [];
-          try {
-            notesThread = await fetchIssueNotesForExport(summary.id);
-          } catch (error) {
-            notesFallbackCount += 1;
-            console.error(`Failed to fetch notes for export issue ${summary.id}:`, error);
-          }
-
-          return {
-            issue,
-            notesThread,
-          };
-        })
-      );
-
-      exportIssues.push(...batchResults);
-    }
-
-    return { exportIssues, detailFallbackCount, notesFallbackCount };
-  }, [fetchIssueDetail, fetchIssueNotesForExport]);
-
   const handleExportForLlm = useCallback(async () => {
     if (isExporting) {
+      return;
+    }
+
+    if (!selectedIssue) {
+      setExportMessage("Select an issue first, then export.");
       return;
     }
 
@@ -941,24 +879,40 @@ export default function FeedbackPage() {
     setExportMessage(null);
 
     try {
-      const summaries = await fetchAllFeedbackSummariesForExport();
-      const {
-        exportIssues,
-        detailFallbackCount,
-        notesFallbackCount,
-      } = await fetchDetailedIssuesForExport(summaries);
+      const issueId = selectedIssue.id;
+      const cachedIssue = issueDetailsById[issueId];
+      const baseIssue = cachedIssue ? { ...selectedIssue, ...cachedIssue } : selectedIssue;
+
+      let detailFallbackCount = 0;
+      let issueForExport = baseIssue;
+      try {
+        issueForExport = await fetchIssueDetail(issueId, true);
+      } catch (error) {
+        detailFallbackCount = 1;
+        console.error(`Failed to fetch full detail for export issue ${issueId}:`, error);
+      }
+
+      let notesFallbackCount = 0;
+      let notesThread: FeedbackNote[] = [];
+      try {
+        notesThread = await fetchIssueNotesForExport(issueId);
+      } catch (error) {
+        notesFallbackCount = 1;
+        console.error(`Failed to fetch notes for export issue ${issueId}:`, error);
+      }
+
       const generatedAt = new Date().toISOString();
       const exportText = buildLlmExportText({
         generatedAt,
         view,
         filters,
-        issues: exportIssues,
+        issues: [{ issue: issueForExport, notesThread }],
         detailFallbackCount,
         notesFallbackCount,
       });
 
       const fileSafeTimestamp = generatedAt.replace(/[:.]/g, "-");
-      const filename = `feedback-llm-export-${fileSafeTimestamp}.txt`;
+      const filename = `feedback-issue-${issueId}-llm-export-${fileSafeTimestamp}.txt`;
       downloadTextFile(exportText, filename);
 
       let copiedToClipboard = false;
@@ -971,7 +925,7 @@ export default function FeedbackPage() {
         }
       }
 
-      const baseMessage = `Exported ${exportIssues.length} issues to ${filename}.`;
+      const baseMessage = `Exported issue #${issueId} to ${filename}.`;
       setExportMessage(copiedToClipboard ? `${baseMessage} Copied to clipboard too.` : baseMessage);
     } catch (error) {
       console.error("Failed to export feedback data:", error);
@@ -980,10 +934,12 @@ export default function FeedbackPage() {
       setIsExporting(false);
     }
   }, [
-    fetchAllFeedbackSummariesForExport,
-    fetchDetailedIssuesForExport,
+    fetchIssueDetail,
+    fetchIssueNotesForExport,
     filters,
     isExporting,
+    issueDetailsById,
+    selectedIssue,
     view,
   ]);
 
@@ -1400,11 +1356,11 @@ export default function FeedbackPage() {
             <button
               type="button"
               onClick={handleExportForLlm}
-              disabled={isExporting}
+              disabled={isExporting || !selectedIssue}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--secondary))] text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               <DownloadIcon className={`w-4 h-4 ${isExporting ? "animate-pulse" : ""}`} />
-              {isExporting ? "Exporting..." : "Export TXT for LLM"}
+              {isExporting ? "Exporting..." : "Export Selected Issue"}
             </button>
 
             <button
