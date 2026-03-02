@@ -57,6 +57,692 @@ interface FeedbackSubmission {
 let initialized = false;
 const DEFAULT_FEEDBACK_PAGE_SIZE = 30;
 const MAX_FEEDBACK_PAGE_SIZE = 50;
+const MAX_FEEDBACK_BODY_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_BODY_BYTES", 6 * 1024 * 1024);
+const MAX_FEEDBACK_DESCRIPTION_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_DESCRIPTION_CHARS", 12_000);
+const MAX_FEEDBACK_EMAIL_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_EMAIL_CHARS", 512);
+const MAX_FEEDBACK_EXTERNAL_ID_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_EXTERNAL_ID_CHARS", 256);
+const MAX_FEEDBACK_EXTERNAL_URL_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_EXTERNAL_URL_CHARS", 1_024);
+const MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS", 256);
+const MAX_FEEDBACK_SETTINGS_SNAPSHOT_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_SETTINGS_SNAPSHOT_BYTES", 128 * 1024);
+const MAX_FEEDBACK_RECENT_ERRORS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_ERRORS", 300);
+const MAX_FEEDBACK_RECENT_ERROR_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_ERROR_CHARS", 1_500);
+const MAX_FEEDBACK_RECENT_LOGS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOGS", 600);
+const MAX_FEEDBACK_RECENT_LOG_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOG_CHARS", 2_000);
+const MAX_FEEDBACK_CRASH_REPORTS = getPositiveIntegerFromEnv("MAX_FEEDBACK_CRASH_REPORTS", 20);
+const MAX_FEEDBACK_CRASH_REPORT_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_CRASH_REPORT_CHARS", 50_000);
+const MAX_FEEDBACK_SCREENSHOT_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_SCREENSHOT_BYTES", 5 * 1024 * 1024);
+const FEEDBACK_RATE_LIMIT_WINDOW_MS = getPositiveIntegerFromEnv("FEEDBACK_RATE_LIMIT_WINDOW_MS", 60_000);
+const FEEDBACK_RATE_LIMIT_MAX_REQUESTS = getPositiveIntegerFromEnv("FEEDBACK_RATE_LIMIT_MAX_REQUESTS", 30);
+const FEEDBACK_RATE_LIMIT_STORE_MAX_KEYS = getPositiveIntegerFromEnv("FEEDBACK_RATE_LIMIT_STORE_MAX_KEYS", 10_000);
+const MAX_RATE_LIMIT_KEY_CHARS = 512;
+const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
+
+interface FeedbackRateLimitBucket {
+  count: number;
+  resetAt: number;
+  lastSeenAt: number;
+}
+
+interface FeedbackRateLimitResult {
+  limited: boolean;
+  limit: number;
+  remaining: number;
+  retryAfterSeconds: number;
+  key: string;
+}
+
+interface FeedbackBodyReadSuccess {
+  ok: true;
+  body: unknown;
+  bytesRead: number;
+}
+
+interface FeedbackBodyReadFailure {
+  ok: false;
+  status: 400 | 413;
+  error: string;
+}
+
+type FeedbackBodyReadResult = FeedbackBodyReadSuccess | FeedbackBodyReadFailure;
+
+interface FeedbackPayloadValidationSuccess {
+  ok: true;
+  body: FeedbackSubmission;
+  screenshotBuffer: Buffer | null;
+}
+
+interface FeedbackPayloadValidationFailure {
+  ok: false;
+  status: 400 | 413;
+  error: string;
+}
+
+type FeedbackPayloadValidationResult =
+  | FeedbackPayloadValidationSuccess
+  | FeedbackPayloadValidationFailure;
+
+interface FeedbackRateLimitGlobal {
+  __feedbackIngestRateLimitStore?: Map<string, FeedbackRateLimitBucket>;
+  __feedbackIngestRateLimitLastCleanupAt?: number;
+}
+
+function getPositiveIntegerFromEnv(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return Math.trunc(parsed);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStringLengthOrZero(value: unknown): number {
+  return typeof value === "string" ? value.length : 0;
+}
+
+function getDiagnosticsString(
+  diagnostics: Record<string, unknown>,
+  key: string,
+  maxChars: number
+): { ok: true; value: string } | { ok: false; status: 400 | 413; error: string } {
+  const raw = diagnostics[key];
+  if (typeof raw !== "string") {
+    return {
+      ok: false,
+      status: 400,
+      error: `Invalid diagnostics.${key}; expected string.`,
+    };
+  }
+
+  if (raw.length > maxChars) {
+    return {
+      ok: false,
+      status: 413,
+      error: `diagnostics.${key} exceeds max length of ${maxChars} characters.`,
+    };
+  }
+
+  return { ok: true, value: raw };
+}
+
+function parseNumber(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeStringArray(
+  value: unknown,
+  fieldName: string,
+  maxItems: number,
+  maxChars: number
+): { ok: true; value: string[] } | { ok: false; status: 400 | 413; error: string } {
+  if (!Array.isArray(value)) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Invalid ${fieldName}; expected array of strings.`,
+    };
+  }
+
+  if (value.length > maxItems) {
+    return {
+      ok: false,
+      status: 413,
+      error: `${fieldName} exceeds max item count of ${maxItems}.`,
+    };
+  }
+
+  const normalized: string[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const entry = value[index];
+    if (typeof entry !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: `Invalid ${fieldName}[${index}]; expected string.`,
+      };
+    }
+
+    if (entry.length > maxChars) {
+      return {
+        ok: false,
+        status: 413,
+        error: `${fieldName}[${index}] exceeds max length of ${maxChars} characters.`,
+      };
+    }
+
+    normalized.push(entry);
+  }
+
+  return { ok: true, value: normalized };
+}
+
+function estimateBase64DecodedBytes(base64: string): number | null {
+  if (base64.length === 0) {
+    return 0;
+  }
+
+  if (base64.length % 4 !== 0 || !BASE64_PATTERN.test(base64)) {
+    return null;
+  }
+
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return (base64.length / 4) * 3 - padding;
+}
+
+function getFeedbackRateLimitStore(): Map<string, FeedbackRateLimitBucket> {
+  const globalState = globalThis as typeof globalThis & FeedbackRateLimitGlobal;
+  if (!globalState.__feedbackIngestRateLimitStore) {
+    globalState.__feedbackIngestRateLimitStore = new Map<string, FeedbackRateLimitBucket>();
+  }
+  return globalState.__feedbackIngestRateLimitStore;
+}
+
+function cleanupFeedbackRateLimitStore(now: number): void {
+  const globalState = globalThis as typeof globalThis & FeedbackRateLimitGlobal;
+  const lastCleanupAt = globalState.__feedbackIngestRateLimitLastCleanupAt ?? 0;
+  if (now - lastCleanupAt < FEEDBACK_RATE_LIMIT_WINDOW_MS) {
+    return;
+  }
+  globalState.__feedbackIngestRateLimitLastCleanupAt = now;
+
+  const store = getFeedbackRateLimitStore();
+  for (const [key, bucket] of store) {
+    if (bucket.resetAt <= now) {
+      store.delete(key);
+    }
+  }
+
+  if (store.size <= FEEDBACK_RATE_LIMIT_STORE_MAX_KEYS) {
+    return;
+  }
+
+  const keysToDelete = store.size - FEEDBACK_RATE_LIMIT_STORE_MAX_KEYS;
+  const iterator = store.keys();
+  for (let index = 0; index < keysToDelete; index += 1) {
+    const entry = iterator.next();
+    if (entry.done) {
+      break;
+    }
+    store.delete(entry.value);
+  }
+}
+
+function getClientAddress(request: NextRequest): string {
+  const cfConnectingIp = request.headers.get("cf-connecting-ip")?.trim();
+  if (cfConnectingIp) {
+    return cfConnectingIp;
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  return "unknown";
+}
+
+function getFeedbackRateLimitKey(request: NextRequest): string {
+  const ip = getClientAddress(request);
+  if (ip !== "unknown") {
+    return `ip:${ip.slice(0, MAX_RATE_LIMIT_KEY_CHARS)}`;
+  }
+
+  const userAgent = request.headers.get("user-agent")?.trim() || "unknown";
+  return `ua:${userAgent.slice(0, MAX_RATE_LIMIT_KEY_CHARS)}`;
+}
+
+function checkFeedbackIngestRateLimit(request: NextRequest): FeedbackRateLimitResult {
+  const now = Date.now();
+  cleanupFeedbackRateLimitStore(now);
+
+  const key = getFeedbackRateLimitKey(request);
+  const store = getFeedbackRateLimitStore();
+  const existing = store.get(key);
+
+  if (!existing || existing.resetAt <= now) {
+    const resetAt = now + FEEDBACK_RATE_LIMIT_WINDOW_MS;
+    store.set(key, {
+      count: 1,
+      resetAt,
+      lastSeenAt: now,
+    });
+
+    return {
+      limited: false,
+      limit: FEEDBACK_RATE_LIMIT_MAX_REQUESTS,
+      remaining: Math.max(0, FEEDBACK_RATE_LIMIT_MAX_REQUESTS - 1),
+      retryAfterSeconds: Math.max(1, Math.ceil((resetAt - now) / 1000)),
+      key,
+    };
+  }
+
+  existing.count += 1;
+  existing.lastSeenAt = now;
+  store.delete(key);
+  store.set(key, existing);
+
+  const retryAfterSeconds = Math.max(1, Math.ceil((existing.resetAt - now) / 1000));
+  if (existing.count > FEEDBACK_RATE_LIMIT_MAX_REQUESTS) {
+    return {
+      limited: true,
+      limit: FEEDBACK_RATE_LIMIT_MAX_REQUESTS,
+      remaining: 0,
+      retryAfterSeconds,
+      key,
+    };
+  }
+
+  return {
+    limited: false,
+    limit: FEEDBACK_RATE_LIMIT_MAX_REQUESTS,
+    remaining: Math.max(0, FEEDBACK_RATE_LIMIT_MAX_REQUESTS - existing.count),
+    retryAfterSeconds,
+    key,
+  };
+}
+
+function createRateLimitedResponse(rateLimit: FeedbackRateLimitResult): NextResponse {
+  const response = NextResponse.json(
+    {
+      error: "Too many feedback submissions. Please retry shortly.",
+    },
+    { status: 429 }
+  );
+  response.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
+  response.headers.set("X-RateLimit-Limit", String(rateLimit.limit));
+  response.headers.set("X-RateLimit-Remaining", "0");
+  return response;
+}
+
+async function readRequestJsonWithLimit(
+  request: NextRequest,
+  maxBytes: number
+): Promise<FeedbackBodyReadResult> {
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const parsedContentLength = Number(contentLengthHeader);
+    if (Number.isFinite(parsedContentLength) && parsedContentLength > maxBytes) {
+      return {
+        ok: false,
+        status: 413,
+        error: `Payload too large. Max body size is ${maxBytes} bytes.`,
+      };
+    }
+  }
+
+  if (!request.body) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Request body is required.",
+    };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytesRead = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    if (!value) {
+      continue;
+    }
+
+    bytesRead += value.byteLength;
+    if (bytesRead > maxBytes) {
+      await reader.cancel();
+      return {
+        ok: false,
+        status: 413,
+        error: `Payload too large. Max body size is ${maxBytes} bytes.`,
+      };
+    }
+
+    chunks.push(value);
+  }
+
+  if (bytesRead === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Request body is required.",
+    };
+  }
+
+  const combined = new Uint8Array(bytesRead);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(new TextDecoder().decode(combined));
+  } catch {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid JSON payload.",
+    };
+  }
+
+  return {
+    ok: true,
+    body: parsedBody,
+    bytesRead,
+  };
+}
+
+function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationResult {
+  if (!isRecord(rawBody)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid feedback payload.",
+    };
+  }
+
+  const body = rawBody as Partial<FeedbackSubmission>;
+  if (typeof body.type !== "string" || body.type.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Missing required field: type.",
+    };
+  }
+
+  if (typeof body.description !== "string") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Missing required field: description.",
+    };
+  }
+
+  if (body.description.length > MAX_FEEDBACK_DESCRIPTION_CHARS) {
+    return {
+      ok: false,
+      status: 413,
+      error: `description exceeds max length of ${MAX_FEEDBACK_DESCRIPTION_CHARS} characters.`,
+    };
+  }
+
+  if (body.description.trim().length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Description cannot be empty.",
+    };
+  }
+
+  if (body.email !== undefined) {
+    if (typeof body.email !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid email field.",
+      };
+    }
+
+    if (body.email.length > MAX_FEEDBACK_EMAIL_CHARS) {
+      return {
+        ok: false,
+        status: 413,
+        error: `email exceeds max length of ${MAX_FEEDBACK_EMAIL_CHARS} characters.`,
+      };
+    }
+  }
+
+  if (body.externalId !== undefined) {
+    if (typeof body.externalId !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid externalId field.",
+      };
+    }
+    if (body.externalId.length > MAX_FEEDBACK_EXTERNAL_ID_CHARS) {
+      return {
+        ok: false,
+        status: 413,
+        error: `externalId exceeds max length of ${MAX_FEEDBACK_EXTERNAL_ID_CHARS} characters.`,
+      };
+    }
+  }
+
+  if (body.externalUrl !== undefined) {
+    if (typeof body.externalUrl !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid externalUrl field.",
+      };
+    }
+    if (body.externalUrl.length > MAX_FEEDBACK_EXTERNAL_URL_CHARS) {
+      return {
+        ok: false,
+        status: 413,
+        error: `externalUrl exceeds max length of ${MAX_FEEDBACK_EXTERNAL_URL_CHARS} characters.`,
+      };
+    }
+  }
+
+  if (typeof body.includeScreenshot !== "boolean") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Missing required field: includeScreenshot.",
+    };
+  }
+
+  if (!isRecord(body.diagnostics)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Missing required field: diagnostics.",
+    };
+  }
+
+  const diagnostics = body.diagnostics as Record<string, unknown>;
+  const appVersionResult = getDiagnosticsString(diagnostics, "appVersion", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  if (!appVersionResult.ok) {
+    return appVersionResult;
+  }
+  const buildNumberResult = getDiagnosticsString(diagnostics, "buildNumber", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  if (!buildNumberResult.ok) {
+    return buildNumberResult;
+  }
+  const macOsResult = getDiagnosticsString(diagnostics, "macOSVersion", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  if (!macOsResult.ok) {
+    return macOsResult;
+  }
+  const deviceModelResult = getDiagnosticsString(diagnostics, "deviceModel", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  if (!deviceModelResult.ok) {
+    return deviceModelResult;
+  }
+  const totalDiskSpaceResult = getDiagnosticsString(diagnostics, "totalDiskSpace", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  if (!totalDiskSpaceResult.ok) {
+    return totalDiskSpaceResult;
+  }
+  const freeDiskSpaceResult = getDiagnosticsString(diagnostics, "freeDiskSpace", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  if (!freeDiskSpaceResult.ok) {
+    return freeDiskSpaceResult;
+  }
+
+  if (!isRecord(diagnostics.databaseStats)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid diagnostics.databaseStats; expected object.",
+    };
+  }
+  const databaseStats = diagnostics.databaseStats as Record<string, unknown>;
+
+  const recentErrorsResult = normalizeStringArray(
+    diagnostics.recentErrors,
+    "diagnostics.recentErrors",
+    MAX_FEEDBACK_RECENT_ERRORS,
+    MAX_FEEDBACK_RECENT_ERROR_CHARS
+  );
+  if (!recentErrorsResult.ok) {
+    return recentErrorsResult;
+  }
+
+  const recentLogsResult = diagnostics.recentLogs === undefined
+    ? { ok: true as const, value: [] as string[] }
+    : normalizeStringArray(
+        diagnostics.recentLogs,
+        "diagnostics.recentLogs",
+        MAX_FEEDBACK_RECENT_LOGS,
+        MAX_FEEDBACK_RECENT_LOG_CHARS
+      );
+  if (!recentLogsResult.ok) {
+    return recentLogsResult;
+  }
+
+  const crashReportsResult = diagnostics.emergencyCrashReports === undefined
+    ? { ok: true as const, value: [] as string[] }
+    : normalizeStringArray(
+        diagnostics.emergencyCrashReports,
+        "diagnostics.emergencyCrashReports",
+        MAX_FEEDBACK_CRASH_REPORTS,
+        MAX_FEEDBACK_CRASH_REPORT_CHARS
+      );
+  if (!crashReportsResult.ok) {
+    return crashReportsResult;
+  }
+
+  const settingsSnapshot = diagnostics.settingsSnapshot;
+  if (settingsSnapshot !== undefined && !isRecord(settingsSnapshot)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid diagnostics.settingsSnapshot; expected object.",
+    };
+  }
+
+  if (settingsSnapshot !== undefined) {
+    const settingsBytes = getStringLengthOrZero(JSON.stringify(settingsSnapshot));
+    if (settingsBytes > MAX_FEEDBACK_SETTINGS_SNAPSHOT_BYTES) {
+      return {
+        ok: false,
+        status: 413,
+        error: `diagnostics.settingsSnapshot exceeds ${MAX_FEEDBACK_SETTINGS_SNAPSHOT_BYTES} bytes.`,
+      };
+    }
+  }
+
+  let screenshotBuffer: Buffer | null = null;
+  if (body.screenshotData !== undefined) {
+    if (typeof body.screenshotData !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid screenshotData; expected base64 string.",
+      };
+    }
+
+    const normalizedScreenshot = body.screenshotData.replace(/\s+/g, "");
+    const decodedSize = estimateBase64DecodedBytes(normalizedScreenshot);
+    if (decodedSize === null) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid screenshotData base64 payload.",
+      };
+    }
+
+    if (decodedSize > MAX_FEEDBACK_SCREENSHOT_BYTES) {
+      return {
+        ok: false,
+        status: 413,
+        error: `screenshotData exceeds max size of ${MAX_FEEDBACK_SCREENSHOT_BYTES} bytes.`,
+      };
+    }
+
+    screenshotBuffer = decodedSize > 0
+      ? Buffer.from(normalizedScreenshot, "base64")
+      : null;
+
+    if (screenshotBuffer && screenshotBuffer.length !== decodedSize) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid screenshotData base64 payload.",
+      };
+    }
+  }
+
+  if (body.includeScreenshot && !screenshotBuffer) {
+    return {
+      ok: false,
+      status: 400,
+      error: "includeScreenshot is true but screenshotData is missing or invalid.",
+    };
+  }
+
+  const normalizedBody: FeedbackSubmission = {
+    type: body.type,
+    description: body.description,
+    includeScreenshot: body.includeScreenshot,
+    diagnostics: {
+      appVersion: appVersionResult.value,
+      buildNumber: buildNumberResult.value,
+      macOSVersion: macOsResult.value,
+      deviceModel: deviceModelResult.value,
+      totalDiskSpace: totalDiskSpaceResult.value,
+      freeDiskSpace: freeDiskSpaceResult.value,
+      databaseStats: {
+        sessionCount: parseNumber(databaseStats.sessionCount),
+        frameCount: parseNumber(databaseStats.frameCount),
+        segmentCount: parseNumber(databaseStats.segmentCount),
+        databaseSizeMB: parseNumber(databaseStats.databaseSizeMB),
+      },
+      recentErrors: recentErrorsResult.value,
+      recentLogs: recentLogsResult.value,
+      emergencyCrashReports: crashReportsResult.value,
+      timestamp: typeof diagnostics.timestamp === "string" ? diagnostics.timestamp : undefined,
+      settingsSnapshot: isRecord(settingsSnapshot) ? settingsSnapshot : undefined,
+      displayInfo: diagnostics.displayInfo as FeedbackDisplayInfo | undefined,
+      processInfo: diagnostics.processInfo as FeedbackProcessInfo | undefined,
+      accessibilityInfo: diagnostics.accessibilityInfo as FeedbackAccessibilityInfo | undefined,
+      performanceInfo: diagnostics.performanceInfo as FeedbackPerformanceInfo | undefined,
+    },
+    email: typeof body.email === "string" ? body.email : undefined,
+    externalSource: typeof body.externalSource === "string" ? body.externalSource : undefined,
+    externalId: typeof body.externalId === "string" ? body.externalId : undefined,
+    externalUrl: typeof body.externalUrl === "string" ? body.externalUrl : undefined,
+    screenshotData: typeof body.screenshotData === "string" ? body.screenshotData : undefined,
+  };
+
+  return {
+    ok: true,
+    body: normalizedBody,
+    screenshotBuffer,
+  };
+}
 
 function elapsedMs(startedAt: number): number {
   return Date.now() - startedAt;
@@ -106,21 +792,69 @@ export async function POST(request: NextRequest) {
   const logger = createApiRouteLogger("feedback.POST", { request });
   logger.start();
 
-  const authError = requireApiBearerAuth(request);
-  if (authError) {
-    logger.warn("auth_failed", { status: authError.status });
-    return authError;
-  }
+  // App clients submit feedback directly and do not send the dashboard bearer token.
+  // Keep POST ingest open; bearer auth is enforced on admin read/write APIs.
 
   const requestStartedAt = Date.now();
   const traceId = `${requestStartedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const rateLimit = checkFeedbackIngestRateLimit(request);
+
+  if (rateLimit.limited) {
+    logger.warn("rate_limited", {
+      status: 429,
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+      key: rateLimit.key,
+    });
+    return createRateLimitedResponse(rateLimit);
+  }
 
   console.log(`[feedback][POST][${traceId}] start`, {
     contentLength: request.headers.get("content-length") ?? "unknown",
     contentType: request.headers.get("content-type") ?? "unknown",
+    rateLimitRemaining: rateLimit.remaining,
   });
 
   try {
+    const parseStartedAt = Date.now();
+    const parsedBodyResult = await readRequestJsonWithLimit(request, MAX_FEEDBACK_BODY_BYTES);
+    if (!parsedBodyResult.ok) {
+      logger.warn("invalid_payload", {
+        status: parsedBodyResult.status,
+        reason: parsedBodyResult.error,
+      });
+      return NextResponse.json(
+        { error: parsedBodyResult.error },
+        { status: parsedBodyResult.status }
+      );
+    }
+
+    const validationResult = validateFeedbackPayload(parsedBodyResult.body);
+    if (!validationResult.ok) {
+      logger.warn("invalid_payload", {
+        status: validationResult.status,
+        reason: validationResult.error,
+      });
+      return NextResponse.json(
+        { error: validationResult.error },
+        { status: validationResult.status }
+      );
+    }
+
+    const body = validationResult.body;
+    const screenshotBuffer = validationResult.screenshotBuffer;
+
+    console.log(`[feedback][POST][${traceId}] parsed request body`, {
+      parseMs: elapsedMs(parseStartedAt),
+      requestBytes: parsedBodyResult.bytesRead,
+      descriptionChars: body.description?.length ?? 0,
+      recentLogsCount: body.diagnostics?.recentLogs?.length ?? 0,
+      recentErrorsCount: body.diagnostics?.recentErrors?.length ?? 0,
+      settingsCount: body.diagnostics?.settingsSnapshot
+        ? Object.keys(body.diagnostics.settingsSnapshot).length
+        : 0,
+      crashReportsCount: body.diagnostics?.emergencyCrashReports?.length ?? 0,
+    });
+
     // Initialize database on first request
     if (!initialized) {
       const initStartedAt = Date.now();
@@ -131,43 +865,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const parseStartedAt = Date.now();
-    const body: FeedbackSubmission = await request.json();
-    console.log(`[feedback][POST][${traceId}] parsed request body`, {
-      parseMs: elapsedMs(parseStartedAt),
-      descriptionChars: body.description?.length ?? 0,
-      recentLogsCount: body.diagnostics?.recentLogs?.length ?? 0,
-      recentErrorsCount: body.diagnostics?.recentErrors?.length ?? 0,
-      settingsCount: body.diagnostics?.settingsSnapshot
-        ? Object.keys(body.diagnostics.settingsSnapshot).length
-        : 0,
-      crashReportsCount: body.diagnostics?.emergencyCrashReports?.length ?? 0,
-    });
-
-    // Validate required fields
-    if (!body.type || !body.description || !body.diagnostics) {
-      logger.warn("missing_required_fields", { status: 400 });
-      return NextResponse.json(
-        { error: "Missing required fields: type, description, or diagnostics" },
-        { status: 400 }
-      );
-    }
-
     // Validate feedback type
     const validTypes = ["Bug Report", "Feature Request", "Question"];
     if (!validTypes.includes(body.type)) {
       logger.warn("invalid_feedback_type", { status: 400, type: body.type });
       return NextResponse.json(
         { error: `Invalid feedback type. Must be one of: ${validTypes.join(", ")}` },
-        { status: 400 }
-      );
-    }
-
-    // Validate description is not empty
-    if (body.description.trim().length === 0) {
-      logger.warn("empty_description", { status: 400 });
-      return NextResponse.json(
-        { error: "Description cannot be empty" },
         { status: 400 }
       );
     }
@@ -181,6 +884,7 @@ export async function POST(request: NextRequest) {
     );
     const externalId = normalizeOptionalText(body.externalId);
     const externalUrl = normalizeOptionalText(body.externalUrl);
+    const hasScreenshot = Boolean(body.includeScreenshot && screenshotBuffer);
 
     // Insert into Turso database with diagnostics fields
     const insertFeedbackStartedAt = Date.now();
@@ -224,8 +928,8 @@ export async function POST(request: NextRequest) {
         stringifyJson(body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO, DEFAULT_PERFORMANCE_INFO),
         stringifyJson(body.diagnostics.emergencyCrashReports || [], []),
         displayCount,
-        body.includeScreenshot && body.screenshotData ? 1 : 0,
-        body.screenshotData ? Buffer.from(body.screenshotData, "base64") : null,
+        hasScreenshot ? 1 : 0,
+        hasScreenshot ? screenshotBuffer : null,
         externalSource,
         externalId,
         externalUrl,
@@ -235,7 +939,7 @@ export async function POST(request: NextRequest) {
       insertFeedbackMs: elapsedMs(insertFeedbackStartedAt),
       rowId: result.lastInsertRowid?.toString() ?? "unknown",
       displayCount,
-      includeScreenshot: Boolean(body.includeScreenshot && body.screenshotData),
+      includeScreenshot: hasScreenshot,
     });
 
     const feedbackId = toFeedbackId(result.lastInsertRowid);

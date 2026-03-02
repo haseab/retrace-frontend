@@ -88,6 +88,25 @@ src/
 
 ## API Routes
 
+### POST /api/feedback
+
+Ingest feedback submissions from the app client.
+
+**Auth Header:** Not required
+
+**Abuse Controls:**
+- Per-IP fixed-window rate limiting (`429 Too Many Requests`)
+- Request/body and field size limits (`413 Payload Too Large`)
+
+### GET /api/feedback
+
+Fetch feedback for the internal dashboard.
+
+**Auth Header Required:**
+```http
+Authorization: Bearer <BEARER_TOKEN>
+```
+
 ### POST /api/downloads/track
 
 Track download events (anonymous, privacy-respecting).
@@ -147,7 +166,7 @@ TURSO_DATABASE_URL=...
 TURSO_AUTH_TOKEN=...
 ADMIN_PASSWORD_HASH=...
 
-# Required bearer secret for feedback + analytics APIs
+# Required bearer secret for admin feedback/analytics APIs and sync jobs
 BEARER_TOKEN=...
 
 # Optional GitHub config (defaults: haseab/retrace)
@@ -158,6 +177,12 @@ GITHUB_TOKEN=...
 # Optional Featurebase config
 FEATUREBASE_API_KEY=...
 FEATUREBASE_ORGANIZATION=retrace
+
+# Optional feedback ingest abuse-control tuning
+FEEDBACK_RATE_LIMIT_MAX_REQUESTS=30
+FEEDBACK_RATE_LIMIT_WINDOW_MS=60000
+MAX_FEEDBACK_BODY_BYTES=6291456
+MAX_FEEDBACK_SCREENSHOT_BYTES=5242880
 ```
 
 ## Feedback Sync
