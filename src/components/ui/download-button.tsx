@@ -15,7 +15,7 @@ interface DownloadButtonProps {
 }
 
 export function DownloadButton({
-  text = "Download Retrace v0.7.6",
+  text = "Download Retrace v0.8.0",
   mobileText = "Go on Desktop to Download",
   className = "",
   showIcon = true,

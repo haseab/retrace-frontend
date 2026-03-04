@@ -10,6 +10,50 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.8.0</title>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
+            <pubDate>Wed, 04 Mar 2026 22:09:42 +0000</pubDate>
+            <description><![CDATA[
+<h2>Retrace v0.8.0</h2>
+<p>This release significantly improves search quality, timeline responsiveness, diagnostics visibility, and update reliability.</p>
+
+<h3>Search & Timeline</h3>
+<ul>
+  <li><strong>Stronger search filters:</strong> Added multi-range date filters, exclusion terms, comment/tag filtering, and OCR-focused full-text matching.</li>
+  <li><strong>Cleaner results:</strong> Improved deduplication and set newest-first defaults so results are easier to scan.</li>
+  <li><strong>Faster keyboard workflows:</strong> Added Cmd+F toggle, improved shortcut behavior, Cmd+drag box text selection, and undo/redo polish.</li>
+  <li><strong>Better search UX:</strong> Added recent search/history flow and clearer no-results recovery actions.</li>
+</ul>
+
+<h3>Performance & Reliability</h3>
+<ul>
+  <li><strong>Timeline loading rework:</strong> Moved from memory-heavy behavior to more disk-backed, coalesced buffering for smoother navigation and lower RAM pressure.</li>
+  <li><strong>Timeline/search correctness fixes:</strong> Resolved stale viewport/state issues, wrong-frame selection bugs, and refresh race conditions.</li>
+  <li><strong>Faster result rendering:</strong> Added thumbnail LRU + disk caching and improved browser URL/window-title query performance.</li>
+  <li><strong>OCR efficiency fix:</strong> Corrected OCR tile recalculation behavior to avoid unnecessary reprocessing.</li>
+</ul>
+
+<h3>System Monitor & Diagnostics</h3>
+<ul>
+  <li><strong>System Monitor expansion:</strong> Refactored CPU monitor into broader System Monitor views, including process memory and energy/power visibility.</li>
+  <li><strong>Better troubleshooting signals:</strong> Improved backlog/process bars, resource logging, and OCR processing estimates.</li>
+</ul>
+
+<h3>Updates & Stability</h3>
+<ul>
+  <li><strong>Update UX improvements:</strong> Added startup update checks, an auto-install updates setting, and an in-app changelog page.</li>
+  <li><strong>Stability hardening:</strong> Improved dark-wake watchdog behavior and strengthened single-instance handling to reduce edge-case hangs/freezes.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.8.0.dmg"
+                sparkle:edSignature="f/U0Ylyb4YRFtmSnnHlROhg9K6uXohKJ5oq3tfgjcjMObw2h5ZEb/HCJWrt1X0ijK59TSXG5lh0H81APTJufCQ=="
+                length="10790326"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.7.6</title>
             <sparkle:version>8</sparkle:version>
             <sparkle:shortVersionString>0.7.6</sparkle:shortVersionString>
