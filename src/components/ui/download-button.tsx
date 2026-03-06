@@ -8,7 +8,6 @@ import { useState } from "react";
 
 interface DownloadButtonProps {
   text?: string;
-  mobileText?: string;
   className?: string;
   showIcon?: boolean;
   source?: string;
@@ -16,7 +15,6 @@ interface DownloadButtonProps {
 
 export function DownloadButton({
   text = "Download Retrace v0.8.0",
-  mobileText = "Go on Desktop to Download",
   className = "",
   showIcon = true,
   source = "website",
@@ -34,19 +32,6 @@ export function DownloadButton({
 
   return (
     <>
-      {/* Mobile: Show simplified message */}
-      <div className="sm:hidden w-full">
-        <Button
-          size="lg"
-          variant="outline"
-          disabled
-          className={`text-base px-6 py-6 rounded-xl transition-all border-0 w-full cursor-not-allowed opacity-50 ${className}`}
-        >
-          {mobileText}
-        </Button>
-      </div>
-
-      {/* Desktop: Show download button with glowing border */}
       <div className="hidden sm:block w-full">
         <div className="relative">
           <Button

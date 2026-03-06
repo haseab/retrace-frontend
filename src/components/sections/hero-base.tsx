@@ -2,18 +2,11 @@
 
 import { Badge } from "@/components/ui/badge";
 import { DownloadButton } from "@/components/ui/download-button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Share } from "lucide-react";
 import { useState } from "react";
-import { apiFetch } from "@/lib/client-api";
-
-const LATEST_VERSION = "1.0.0";
+import { DOWNLOAD_URL } from "@/lib/track-download";
 
 interface HeroBaseProps {
   badge?: string;
@@ -30,45 +23,46 @@ export function HeroBase({
   highlightedText,
   description,
   mobileDescription,
-  trackingSource,
+  trackingSource: _trackingSource,
 }: HeroBaseProps) {
-  const [isDownloading, setIsDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mobileLinkCopied, setMobileLinkCopied] = useState(false);
+  const [mobileLinkShared, setMobileLinkShared] = useState(false);
+  const [showCopyToast, setShowCopyToast] = useState(false);
 
-  const handleDownload = async () => {
-    setIsDownloading(true);
-
+  const handleCopyDownloadLink = async () => {
     try {
-      // Track download and get download URL
-      const response = await apiFetch("/api/downloads/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          version: LATEST_VERSION,
-          platform: "macOS",
-          source: trackingSource,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Trigger download directly
-        if (data.downloadUrl) {
-          window.location.href = data.downloadUrl;
-        } else {
-          // Fallback: redirect to GitHub releases
-          window.open("https://github.com/haseab/retrace/releases", "_blank");
-        }
-      } else {
-        // If tracking fails, still allow download
-        window.open("https://github.com/haseab/retrace/releases", "_blank");
-      }
+      await navigator.clipboard.writeText(DOWNLOAD_URL);
+      setMobileLinkCopied(true);
+      setShowCopyToast(true);
+      setTimeout(() => setMobileLinkCopied(false), 2000);
+      setTimeout(() => setShowCopyToast(false), 2600);
     } catch (error) {
-      console.error("Failed to track download:", error);
-      // On error, still allow download via GitHub
-      window.open("https://github.com/haseab/retrace/releases", "_blank");
-    } finally {
-      setIsDownloading(false);
+      console.error("Failed to copy download link:", error);
+    }
+  };
+
+  const handleShareLink = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Retrace Download",
+          text: "Install Retrace on your Mac",
+          url: DOWNLOAD_URL,
+        });
+      } else {
+        await navigator.clipboard.writeText(DOWNLOAD_URL);
+        setMobileLinkCopied(true);
+        setTimeout(() => setMobileLinkCopied(false), 2000);
+      }
+
+      setMobileLinkShared(true);
+      setTimeout(() => setMobileLinkShared(false), 2000);
+    } catch (error) {
+      // Ignore canceled share sheet; only log actual failures.
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        console.error("Failed to share download link:", error);
+      }
     }
   };
 
@@ -78,6 +72,20 @@ export function HeroBase({
         <div className="absolute inset-0 bg-gradient-to-b from-[#0e2c6b] to-[var(--deep-blue)]" />
 
         <div className="relative z-10 mx-auto max-w-7xl w-full py-20">
+          <div className="pointer-events-none fixed inset-x-4 bottom-6 z-20 sm:hidden">
+            <div
+              className={`mx-auto max-w-xs rounded-2xl border border-white/15 bg-[#0b1736]/90 px-4 py-3 text-sm font-medium text-white shadow-lg backdrop-blur transition-all duration-200 ${
+                showCopyToast
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-2 opacity-0"
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              Now press paste on your MacBook.
+            </div>
+          </div>
+
           <div className="text-center space-y-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -118,6 +126,34 @@ export function HeroBase({
               transition={{ duration: 0.5, delay: 0.3 }}
               className="flex flex-col items-center justify-center gap-3 pt-4"
             >
+              <div className="flex sm:hidden w-full max-w-xs flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={handleCopyDownloadLink}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-card/30 px-5 py-4 text-base font-medium text-white backdrop-blur-sm transition-colors hover:border-white/20 hover:bg-card/40"
+                >
+                  {mobileLinkCopied ? (
+                    <Check className="h-5 w-5 text-green-400" />
+                  ) : (
+                    <Copy className="h-5 w-5" />
+                  )}
+                  {mobileLinkCopied ? "Link copied" : "Copy download link"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShareLink}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-card/30 px-5 py-4 text-base font-medium text-white backdrop-blur-sm transition-colors hover:border-white/20 hover:bg-card/40"
+                >
+                  {mobileLinkShared ? (
+                    <Check className="h-5 w-5 text-green-400" />
+                  ) : (
+                    <Share className="h-5 w-5" />
+                  )}
+                  {mobileLinkShared ? "Link shared" : "Share link"}
+                </button>
+              </div>
+
               <div className="relative w-full max-w-xs">
                 <DownloadButton text="Download Retrace v0.8.0" />
               </div>
