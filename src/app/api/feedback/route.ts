@@ -790,14 +790,12 @@ function normalizeOptionalText(value: unknown): string | null {
 
 export async function POST(request: NextRequest) {
   const logger = createApiRouteLogger("feedback.POST", { request });
-  logger.start();
+  const rateLimit = checkFeedbackIngestRateLimit(request);
+  logger.start({ rateLimitRemaining: rateLimit.remaining });
 
   // App clients submit feedback directly and do not send the dashboard bearer token.
   // Keep POST ingest open; bearer auth is enforced on admin read/write APIs.
-
-  const requestStartedAt = Date.now();
-  const traceId = `${requestStartedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const rateLimit = checkFeedbackIngestRateLimit(request);
+  const traceId = logger.traceId;
 
   if (rateLimit.limited) {
     logger.warn("rate_limited", {
@@ -807,12 +805,6 @@ export async function POST(request: NextRequest) {
     });
     return createRateLimitedResponse(rateLimit);
   }
-
-  console.log(`[feedback][POST][${traceId}] start`, {
-    contentLength: request.headers.get("content-length") ?? "unknown",
-    contentType: request.headers.get("content-type") ?? "unknown",
-    rateLimitRemaining: rateLimit.remaining,
-  });
 
   try {
     const parseStartedAt = Date.now();
@@ -843,16 +835,18 @@ export async function POST(request: NextRequest) {
     const body = validationResult.body;
     const screenshotBuffer = validationResult.screenshotBuffer;
 
-    console.log(`[feedback][POST][${traceId}] parsed request body`, {
+    logger.info("payload_parsed", {
       parseMs: elapsedMs(parseStartedAt),
       requestBytes: parsedBodyResult.bytesRead,
       descriptionChars: body.description?.length ?? 0,
-      recentLogsCount: body.diagnostics?.recentLogs?.length ?? 0,
-      recentErrorsCount: body.diagnostics?.recentErrors?.length ?? 0,
-      settingsCount: body.diagnostics?.settingsSnapshot
-        ? Object.keys(body.diagnostics.settingsSnapshot).length
-        : 0,
-      crashReportsCount: body.diagnostics?.emergencyCrashReports?.length ?? 0,
+      diagnostics: {
+        recentLogs: body.diagnostics?.recentLogs?.length ?? 0,
+        recentErrors: body.diagnostics?.recentErrors?.length ?? 0,
+        settings: body.diagnostics?.settingsSnapshot
+          ? Object.keys(body.diagnostics.settingsSnapshot).length
+          : 0,
+        crashReports: body.diagnostics?.emergencyCrashReports?.length ?? 0,
+      },
     });
 
     // Initialize database on first request
@@ -860,7 +854,7 @@ export async function POST(request: NextRequest) {
       const initStartedAt = Date.now();
       await initDatabase();
       initialized = true;
-      console.log(`[feedback][POST][${traceId}] initDatabase complete`, {
+      logger.info("database_initialized", {
         initMs: elapsedMs(initStartedAt),
       });
     }
@@ -935,17 +929,19 @@ export async function POST(request: NextRequest) {
         externalUrl,
       ],
     });
-    console.log(`[feedback][POST][${traceId}] inserted feedback row`, {
-      insertFeedbackMs: elapsedMs(insertFeedbackStartedAt),
-      rowId: result.lastInsertRowid?.toString() ?? "unknown",
-      displayCount,
-      includeScreenshot: hasScreenshot,
-    });
 
     const feedbackId = toFeedbackId(result.lastInsertRowid);
     if (feedbackId === null) {
       throw new Error("Failed to determine inserted feedback id");
     }
+
+    logger.info("feedback_inserted", {
+      feedbackId,
+      insertFeedbackMs: elapsedMs(insertFeedbackStartedAt),
+      displayCount,
+      hasScreenshot,
+      externalSource,
+    });
 
     const diagnosticsWriteStartedAt = Date.now();
     await upsertFeedbackDiagnostics(db, feedbackId, {
@@ -961,24 +957,17 @@ export async function POST(request: NextRequest) {
       traceId,
       logTimings: true,
     });
-    console.log(`[feedback][POST][${traceId}] diagnostics persisted`, {
-      diagnosticsWriteMs: elapsedMs(diagnosticsWriteStartedAt),
-    });
-
-    console.log("Feedback saved to Turso:", {
-      id: feedbackId,
-      type: body.type,
-      appVersion: body.diagnostics.appVersion,
-    });
-    console.log(`[feedback][POST][${traceId}] success`, {
-      totalMs: elapsedMs(requestStartedAt),
+    logger.info("diagnostics_persisted", {
       feedbackId,
+      diagnosticsWriteMs: elapsedMs(diagnosticsWriteStartedAt),
     });
     logger.success({
       status: 200,
       feedbackId,
       externalSource,
-      totalMs: elapsedMs(requestStartedAt),
+      feedbackType: body.type,
+      hasScreenshot,
+      appVersion: body.diagnostics.appVersion,
     });
 
     return NextResponse.json({
@@ -987,13 +976,8 @@ export async function POST(request: NextRequest) {
       id: feedbackId.toString(),
     });
   } catch (error) {
-    console.error(`[feedback][POST][${traceId}] failed`, {
-      totalMs: elapsedMs(requestStartedAt),
-      error,
-    });
     logger.error("failed", error, {
       status: 500,
-      totalMs: elapsedMs(requestStartedAt),
     });
     return NextResponse.json(
       { error: "Failed to process feedback submission" },

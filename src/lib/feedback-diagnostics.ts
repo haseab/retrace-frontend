@@ -1,5 +1,6 @@
 import type { Client } from "@libsql/client";
 import { extractLeadingBracketTokens } from "@/lib/feedback-display";
+import { writeStructuredLog } from "@/lib/api-route-logger";
 
 export interface FeedbackDisplay {
   index: number;
@@ -895,26 +896,29 @@ export async function upsertFeedbackDiagnostics(
   }
 
   if (shouldLogTimings) {
-    console.log(`[feedback][diagnostics][${traceId}] upsert complete`, {
-      feedbackId,
-      totalMs: Date.now() - totalStartedAt,
-      counts: {
-        settings: normalizedSettingsSnapshot ? Object.keys(normalizedSettingsSnapshot).length : 0,
-        displays: normalizedDisplayInfo.displays.length,
-        crashReports: normalizedCrashReports.length,
-        recentLogs: normalizedRecentLogs.length,
-        recentErrors: normalizedRecentErrors.length,
+    writeStructuredLog({
+      prefix: `[feedback][diagnostics][${traceId}]`,
+      event: "upsert_complete",
+      summary: `feedbackId=${feedbackId} total=${Date.now() - totalStartedAt}ms`,
+      meta: {
+        counts: {
+          settings: normalizedSettingsSnapshot ? Object.keys(normalizedSettingsSnapshot).length : 0,
+          displays: normalizedDisplayInfo.displays.length,
+          crashReports: normalizedCrashReports.length,
+          recentLogs: normalizedRecentLogs.length,
+          recentErrors: normalizedRecentErrors.length,
+        },
+        writeFlags: {
+          writePerformance,
+          writeProcess,
+          writeAccessibility,
+          writeDisplays,
+          writeSettings,
+          writeCrashReports,
+          writeLogEntries,
+        },
+        stageTimings,
       },
-      writeFlags: {
-        writePerformance,
-        writeProcess,
-        writeAccessibility,
-        writeDisplays,
-        writeSettings,
-        writeCrashReports,
-        writeLogEntries,
-      },
-      stageTimings,
     });
   }
 

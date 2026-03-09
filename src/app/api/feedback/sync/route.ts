@@ -1011,7 +1011,7 @@ async function runSync(request: NextRequest, logger: ApiRouteLogger) {
   const githubItems = await fetchGitHubOutstanding();
   logger.info("github_fetched", { fetched: githubItems.length });
   const github = await upsertExternalItems("github", githubItems);
-  logger.info("github_upserted", { summary: github });
+  logger.info("github_upserted", { github });
 
   const featurebaseFetched = await fetchFeaturebaseOutstanding();
   let featurebase: SourceSyncSummary;
@@ -1032,13 +1032,12 @@ async function runSync(request: NextRequest, logger: ApiRouteLogger) {
     featurebase = await upsertExternalItems("featurebase", featurebaseFetched.items, {
       resolveMissing: false,
     });
-    logger.info("featurebase_upserted", { summary: featurebase });
+    logger.info("featurebase_upserted", { featurebase });
   }
 
   const durationMs = Date.now() - startedAt;
   logger.success({
     status: 200,
-    durationMs,
     github,
     featurebase,
   });
