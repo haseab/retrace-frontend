@@ -2,6 +2,7 @@
 
 import { FeedbackItem, STATUS_CONFIG, PRIORITY_CONFIG, SOURCE_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
 import { getDisplayDescription } from "@/lib/feedback-display";
+import type { MouseEvent } from "react";
 
 interface IssueCardProps {
   issue: FeedbackItem;
@@ -9,10 +10,19 @@ interface IssueCardProps {
   isSelected?: boolean;
   onClick?: () => void;
   onHover?: () => void;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
   compact?: boolean;
 }
 
-export function IssueCard({ issue, isUnread = false, isSelected, onClick, onHover, compact = false }: IssueCardProps) {
+export function IssueCard({
+  issue,
+  isUnread = false,
+  isSelected,
+  onClick,
+  onHover,
+  onContextMenu,
+  compact = false,
+}: IssueCardProps) {
   const typeConfig = TYPE_CONFIG[issue.type] || { label: issue.type, color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
   const statusConfig = STATUS_CONFIG[issue.status] || STATUS_CONFIG.open;
   const priorityConfig = PRIORITY_CONFIG[issue.priority] || PRIORITY_CONFIG.medium;
@@ -34,6 +44,7 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, onHove
         data-feedback-select-trigger="true"
         onClick={onClick}
         onMouseEnter={onHover}
+        onContextMenu={onContextMenu}
         className={`relative p-3 bg-[hsl(var(--card))] rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
           isSelected
             ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"
@@ -82,6 +93,7 @@ export function IssueCard({ issue, isUnread = false, isSelected, onClick, onHove
       data-feedback-select-trigger="true"
       onClick={onClick}
       onMouseEnter={onHover}
+      onContextMenu={onContextMenu}
       className={`relative p-4 bg-[hsl(var(--card))] rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] ${
         isSelected
           ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"

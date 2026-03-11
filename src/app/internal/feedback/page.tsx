@@ -1418,6 +1418,7 @@ export default function FeedbackPage() {
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}
+                onDelete={handleDeleteIssue}
                 onLoadMore={loadMoreKanbanStatus}
                 onIssueHover={prefetchIssueDetailOnHover}
               />

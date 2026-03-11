@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { MouseEvent } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { FeedbackItem, FeedbackStatus, STATUS_CONFIG } from "@/lib/types/feedback";
@@ -15,6 +16,7 @@ interface KanbanColumnProps {
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
   onIssueHover?: (issueId: number) => void;
+  onIssueContextMenu?: (event: MouseEvent<HTMLDivElement>, issue: FeedbackItem) => void;
 }
 
 export function KanbanColumn({
@@ -26,6 +28,7 @@ export function KanbanColumn({
   selectedId,
   onSelect,
   onIssueHover,
+  onIssueContextMenu,
 }: KanbanColumnProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -115,6 +118,7 @@ export function KanbanColumn({
                   isSelected={selectedId === issue.id}
                   onClick={() => onSelect(issue)}
                   onHover={() => onIssueHover?.(issue.id)}
+                  onContextMenu={(event) => onIssueContextMenu?.(event, issue)}
                 />
               </div>
             ))}

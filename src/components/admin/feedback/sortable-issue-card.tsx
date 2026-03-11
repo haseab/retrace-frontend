@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { FeedbackItem } from "@/lib/types/feedback";
 import { IssueCard } from "./issue-card";
+import type { MouseEvent } from "react";
 
 interface SortableIssueCardProps {
   issue: FeedbackItem;
@@ -11,9 +12,17 @@ interface SortableIssueCardProps {
   isSelected: boolean;
   onClick: () => void;
   onHover?: () => void;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
-export function SortableIssueCard({ issue, isUnread, isSelected, onClick, onHover }: SortableIssueCardProps) {
+export function SortableIssueCard({
+  issue,
+  isUnread,
+  isSelected,
+  onClick,
+  onHover,
+  onContextMenu,
+}: SortableIssueCardProps) {
   const {
     attributes,
     listeners,
@@ -52,6 +61,7 @@ export function SortableIssueCard({ issue, isUnread, isSelected, onClick, onHove
         isSelected={isSelected}
         onClick={onClick}
         onHover={onHover}
+        onContextMenu={onContextMenu}
         compact
       />
     </div>
