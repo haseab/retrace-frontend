@@ -14,7 +14,11 @@ interface KanbanColumnProps {
   isLoadingMore: boolean;
   onLoadMore: (status: FeedbackStatus) => void;
   selectedId: number | null;
-  onSelect: (issue: FeedbackItem) => void;
+  selectedIssueIds: Set<number>;
+  movingOutIssueIds: Set<number>;
+  movingInIssueIds: Set<number>;
+  isBulkMoveTarget: boolean;
+  onSelect: (issue: FeedbackItem, event: MouseEvent<HTMLDivElement>) => void;
   onIssueHover?: (issueId: number) => void;
   onIssueContextMenu?: (event: MouseEvent<HTMLDivElement>, issue: FeedbackItem) => void;
 }
@@ -26,6 +30,10 @@ export function KanbanColumn({
   isLoadingMore,
   onLoadMore,
   selectedId,
+  selectedIssueIds,
+  movingOutIssueIds,
+  movingInIssueIds,
+  isBulkMoveTarget,
   onSelect,
   onIssueHover,
   onIssueContextMenu,
@@ -101,7 +109,9 @@ export function KanbanColumn({
         className={`flex-1 rounded-xl p-2 min-h-[200px] overflow-y-auto transition-all duration-300 ease-out ${
           isOver
             ? "bg-[hsl(var(--primary))]/20 ring-2 ring-[hsl(var(--primary))] ring-inset scale-[1.01] shadow-lg shadow-[hsl(var(--primary))]/10"
-            : "bg-[hsl(var(--secondary))]/50"
+            : isBulkMoveTarget
+              ? "bg-emerald-500/10 ring-1 ring-emerald-400/50 shadow-lg shadow-emerald-500/10"
+              : "bg-[hsl(var(--secondary))]/50"
         }`}
       >
         <SortableContext items={issueIds} strategy={verticalListSortingStrategy}>
@@ -115,8 +125,15 @@ export function KanbanColumn({
                 <SortableIssueCard
                   issue={issue}
                   isUnread={!issue.isRead}
-                  isSelected={selectedId === issue.id}
-                  onClick={() => onSelect(issue)}
+                  isSelected={selectedIssueIds.has(issue.id) || selectedId === issue.id}
+                  moveAnimationPhase={
+                    movingOutIssueIds.has(issue.id)
+                      ? "out"
+                      : movingInIssueIds.has(issue.id)
+                        ? "in"
+                        : null
+                  }
+                  onClick={(event) => onSelect(issue, event)}
                   onHover={() => onIssueHover?.(issue.id)}
                   onContextMenu={(event) => onIssueContextMenu?.(event, issue)}
                 />

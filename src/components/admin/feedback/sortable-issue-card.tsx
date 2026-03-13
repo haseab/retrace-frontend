@@ -10,9 +10,10 @@ interface SortableIssueCardProps {
   issue: FeedbackItem;
   isUnread: boolean;
   isSelected: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLDivElement>) => void;
   onHover?: () => void;
   onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
+  moveAnimationPhase?: "out" | "in" | null;
 }
 
 export function SortableIssueCard({
@@ -22,6 +23,7 @@ export function SortableIssueCard({
   onClick,
   onHover,
   onContextMenu,
+  moveAnimationPhase = null,
 }: SortableIssueCardProps) {
   const {
     attributes,
@@ -52,7 +54,11 @@ export function SortableIssueCard({
       className={`touch-none transition-all duration-200 ${
         isDragging
           ? "z-50 opacity-90 scale-105 rotate-1 shadow-2xl shadow-black/30"
-          : "opacity-100"
+          : moveAnimationPhase === "out"
+            ? "opacity-100 animate-bulk-card-out pointer-events-none"
+            : moveAnimationPhase === "in"
+              ? "opacity-100 animate-bulk-card-in"
+              : "opacity-100"
       }`}
     >
       <IssueCard

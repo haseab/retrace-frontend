@@ -19,6 +19,8 @@
   --animate-bounce-subtle: bounce-subtle 0.4s ease-out;
   --animate-shimmer: shimmer 1.5s ease-in-out infinite;
   --animate-pop: pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-bulk-card-out: bulk-card-out 0.16s ease-in forwards;
+  --animate-bulk-card-in: bulk-card-in 0.45s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 @keyframes fade-in {
@@ -81,6 +83,17 @@
   0% { transform: scale(0.95); }
   50% { transform: scale(1.02); }
   100% { transform: scale(1); }
+}
+
+@keyframes bulk-card-out {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0.35; transform: translateY(-6px) scale(0.985); }
+}
+
+@keyframes bulk-card-in {
+  0% { opacity: 0.4; transform: translateY(10px) scale(0.98); }
+  60% { opacity: 1; transform: translateY(-1px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes accordion-down {

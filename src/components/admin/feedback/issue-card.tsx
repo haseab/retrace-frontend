@@ -8,7 +8,7 @@ interface IssueCardProps {
   issue: FeedbackItem;
   isUnread?: boolean;
   isSelected?: boolean;
-  onClick?: () => void;
+  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onHover?: () => void;
   onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
   compact?: boolean;
@@ -42,6 +42,7 @@ export function IssueCard({
     return (
       <div
         data-feedback-select-trigger="true"
+        data-feedback-card-id={issue.id}
         onClick={onClick}
         onMouseEnter={onHover}
         onContextMenu={onContextMenu}
@@ -91,6 +92,7 @@ export function IssueCard({
   return (
     <div
       data-feedback-select-trigger="true"
+      data-feedback-card-id={issue.id}
       onClick={onClick}
       onMouseEnter={onHover}
       onContextMenu={onContextMenu}
