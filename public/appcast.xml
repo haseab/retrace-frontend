@@ -10,6 +10,66 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.8.5</title>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>0.8.5</sparkle:shortVersionString>
+            <pubDate>Sat, 14 Mar 2026 19:27:06 +0000</pubDate>
+            <description><![CDATA[
+<h2>Retrace v0.8.1</h2>
+<p>This release focuses on crash recovery hardening, richer browser context capture, smoother timeline behavior under real-world load, and new dashboard range controls.</p>
+
+<h3>Recovery & Storage Safety</h3>
+<ul>
+  <li><strong>Safer startup sequencing:</strong> Retrace now validates WAL availability and completes crash recovery before starting new capture writes.</li>
+  <li><strong>Smarter WAL recovery:</strong> Recovery preserves readable video prefixes, re-encodes only damaged tails, and quarantines corrupted WAL sessions instead of discarding usable data.</li>
+  <li><strong>Clear degraded-mode signaling:</strong> If WAL startup fails, Retrace records diagnostics, keeps existing timeline/search data readable, and surfaces the failure in-app.</li>
+</ul>
+
+<h3>Browser Context & In-Page URLs</h3>
+<ul>
+  <li><strong>In-page link mapping:</strong> Browser-captured page links are now persisted and mapped to OCR nodes, so links can be opened or copied directly from timeline overlays.</li>
+  <li><strong>Broader browser coverage:</strong> URL extraction now supports Safari and more Chromium-family apps (Chrome, Edge, Brave, Arc, Dia, Vivaldi, Opera, Chromium, Comet, SigmaOS, ChatGPT desktop, and web-app shims).</li>
+  <li><strong>Guided setup flow:</strong> Settings and onboarding now provide browser-specific automation/in-page URL setup guidance and permission status.</li>
+</ul>
+
+<h3>Timeline & Search Behavior</h3>
+<ul>
+  <li><strong>Less unexpected jumping:</strong> Near-live auto-advance is now time-aware, reducing unwanted jumps after the timeline has been hidden for longer periods.</li>
+  <li><strong>Cleaner refresh semantics:</strong> Filter-expiry refreshes can force full reloads to avoid stale filtered/unfiltered window mixing.</li>
+  <li><strong>Stronger date jumps:</strong> Natural-language date navigation handles relative phrases more accurately and anchors coarse "ago" queries to real frame buckets.</li>
+  <li><strong>Sharper highlighting:</strong> Search highlighting now better matches exact phrase intent for comma-separated queries.</li>
+</ul>
+
+<h3>Dashboard Range & Analytics</h3>
+<ul>
+  <li><strong>New App Usage date picker:</strong> Dashboard App Usage now supports a selectable date range up to 31 days.</li>
+  <li><strong>Range navigation controls:</strong> Added previous/next range shifting and bounded forward navigation so ranges do not move into future days.</li>
+  <li><strong>Range-aware metrics and graphs:</strong> Screen time, searches, timeline opens, text copies, and storage graphs now align with the selected range.</li>
+  <li><strong>App Usage layout preference:</strong> Added a persistent dashboard setting for List vs Tiles App Usage layout.</li>
+</ul>
+
+<h3>Performance & Diagnostics</h3>
+<ul>
+  <li><strong>OCR memory controls:</strong> Adaptive OCR downscaling and memory backpressure reduce CPU/RAM spikes on high-resolution and ultrawide displays.</li>
+  <li><strong>Decoder cleanup on hide:</strong> Timeline hide now releases decode state and caches more aggressively, reducing background decoder memory growth.</li>
+  <li><strong>Better crash visibility:</strong> Dashboard now surfaces recent auto-quit/crash/WAL-startup issues with acknowledgment and prefilled bug-report flows.</li>
+  <li><strong>Deeper dashboard tracing:</strong> Added more path/query latency and DB-actor tracing for dashboard app-usage and daily metric loading paths.</li>
+</ul>
+
+<h3>Data Source Handoff & Build Visibility</h3>
+<ul>
+  <li><strong>Configurable Rewind cutoff:</strong> You can set a custom Rewind cutoff date/time, with improved source boundary handling to reduce overlap between Rewind and native data.</li>
+  <li><strong>Version transparency:</strong> Version/build/commit metadata is now surfaced more consistently across settings, dashboard, and update surfaces.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.8.5.dmg"
+                sparkle:edSignature="xE3e62I5+SHP7HglpAC4jRauAsS1BeWyqqLWEjHPT2t/5bmNqtf4AE30Ie5wdsQC5sRYwYZWUn2gJOjDH7ODDA=="
+                length="18579987"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.8.0</title>
             <sparkle:version>9</sparkle:version>
             <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
