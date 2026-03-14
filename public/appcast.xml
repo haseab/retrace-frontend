@@ -15,7 +15,7 @@
             <sparkle:shortVersionString>0.8.5</sparkle:shortVersionString>
             <pubDate>Sat, 14 Mar 2026 19:27:06 +0000</pubDate>
             <description><![CDATA[
-<h2>Retrace v0.8.1</h2>
+<h2>Retrace v0.8.5</h2>
 <p>This release focuses on crash recovery hardening, richer browser context capture, smoother timeline behavior under real-world load, and new dashboard range controls.</p>
 
 <h3>Recovery & Storage Safety</h3>
