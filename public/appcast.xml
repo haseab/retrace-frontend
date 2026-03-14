@@ -27,7 +27,7 @@
 
 <h3>Browser Context & In-Page URLs</h3>
 <ul>
-  <li><strong>In-page link mapping:</strong> Browser-captured page links are now persisted and mapped to OCR nodes, so links can be opened or copied directly from timeline overlays.</li>
+  <li><strong>In-page link mapping (experimental):</strong> Browser-captured page links are now persisted and mapped to OCR nodes, so links can be opened or copied directly from timeline overlays. Enable it in Settings > Capture > In-Page URLs (Experimental) > Collect in-page URLs.</li>
   <li><strong>Broader browser coverage:</strong> URL extraction now supports Safari and more Chromium-family apps (Chrome, Edge, Brave, Arc, Dia, Vivaldi, Opera, Chromium, Comet, SigmaOS, ChatGPT desktop, and web-app shims).</li>
   <li><strong>Guided setup flow:</strong> Settings and onboarding now provide browser-specific automation/in-page URL setup guidance and permission status.</li>
 </ul>
