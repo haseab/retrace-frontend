@@ -13,8 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { apiFetch } from "@/lib/client-api";
-
-const LATEST_VERSION = "1.0.0";
+import {
+  RETRACE_DOWNLOAD_FILENAME,
+  RETRACE_VERSION,
+  RETRACE_VERSION_LABEL,
+} from "@/lib/retrace-release";
 const DMG_SIZE = "45 MB";
 const SHA256 = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6";
 
@@ -49,7 +52,7 @@ export default function DownloadPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          version: LATEST_VERSION,
+          version: RETRACE_VERSION,
           platform: "macOS",
           source: "website",
         }),
@@ -93,7 +96,7 @@ export default function DownloadPage() {
               className="text-lg px-12 py-7"
             >
               <Download className="mr-2 h-5 w-5" />
-              Download v{LATEST_VERSION} for macOS
+              Download {RETRACE_VERSION_LABEL} for macOS
             </Button>
             <div className="text-sm text-muted-foreground">
               {DMG_SIZE} • Requires macOS 13.0 or later
@@ -185,7 +188,7 @@ export default function DownloadPage() {
               Verify the integrity of your download by comparing the SHA-256
               checksum using:{" "}
               <code className="bg-muted px-1 py-0.5 rounded">
-                shasum -a 256 Retrace-{LATEST_VERSION}.dmg
+                shasum -a 256 {RETRACE_DOWNLOAD_FILENAME}
               </code>
             </p>
           </div>

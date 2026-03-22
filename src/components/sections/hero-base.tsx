@@ -3,10 +3,10 @@
 import { Badge } from "@/components/ui/badge";
 import { DownloadButton } from "@/components/ui/download-button";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { motion } from "framer-motion";
-import { Copy, Check, Share } from "lucide-react";
-import { useState } from "react";
 import { DOWNLOAD_URL } from "@/lib/track-download";
+import { motion } from "framer-motion";
+import { Check, Copy, Share } from "lucide-react";
+import { useState } from "react";
 
 interface HeroBaseProps {
   badge?: string;
@@ -155,7 +155,7 @@ export function HeroBase({
               </div>
 
               <div className="relative w-full max-w-xs">
-                <DownloadButton text="Download Retrace v0.8.5" />
+                <DownloadButton />
               </div>
 
               <div className="hidden sm:flex items-center gap-3 w-full max-w-xs">
@@ -165,16 +165,16 @@ export function HeroBase({
               </div>
 
               <TooltipProvider delayDuration={0}>
-                <div
-                  className="hidden sm:flex group relative items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs hover:border-white/10 transition-colors"
-                >
+                <div className="hidden sm:flex group relative items-center gap-2 rounded-xl bg-card/30 backdrop-blur-sm border border-white/5 px-4 py-2 w-full max-w-xs hover:border-white/10 transition-colors">
                   <code className="text-sm text-muted-foreground">
                     <span className="text-blue-400">$</span> brew install --cask
                     retrace
                   </code>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText("brew install --cask retrace");
+                      navigator.clipboard.writeText(
+                        "brew install --cask retrace",
+                      );
                       setCopied(true);
                       setTimeout(() => setCopied(false), 2000);
                     }}

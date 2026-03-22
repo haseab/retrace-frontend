@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/client-api";
-
-const DOWNLOAD_URL = "https://cdn.retrace.to/Retrace-v0.8.5.dmg";
+import {
+  RETRACE_DOWNLOAD_URL,
+  RETRACE_VERSION,
+} from "@/lib/retrace-release";
 
 export function isWindowsMachine() {
   if (typeof navigator === "undefined") {
@@ -72,7 +74,7 @@ export function trackDownload(source: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      version: "0.8.5",
+      version: RETRACE_VERSION,
       source,
       timestamp: new Date().toISOString(),
       os,
@@ -94,7 +96,7 @@ export function trackDownload(source: string) {
 
 export function handleDownloadClick(source: string) {
   trackDownload(source);
-  window.location.href = DOWNLOAD_URL;
+  window.location.href = RETRACE_DOWNLOAD_URL;
 }
 
-export { DOWNLOAD_URL };
+export { RETRACE_DOWNLOAD_URL as DOWNLOAD_URL };

@@ -2,9 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { WindowsDownloadDialog } from "@/components/ui/windows-download-dialog";
+import { RETRACE_VERSION_LABEL } from "@/lib/retrace-release";
 import { handleDownloadClick, isWindowsMachine } from "@/lib/track-download";
-import { Download } from "lucide-react";
 import { useState } from "react";
+import { FaApple } from "react-icons/fa";
 
 interface DownloadButtonProps {
   text?: string;
@@ -14,7 +15,7 @@ interface DownloadButtonProps {
 }
 
 export function DownloadButton({
-  text = "Download Retrace v0.8.5",
+  text = `Download (${RETRACE_VERSION_LABEL})`,
   className = "",
   showIcon = true,
   source = "website",
@@ -38,9 +39,9 @@ export function DownloadButton({
             size="lg"
             variant="outline"
             onClick={handleClick}
-            className={`text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full ${className}`}
+            className={`text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full [&_svg]:size-6 ${className}`}
           >
-            {showIcon && <Download className="mr-2 h-5 w-5" />}
+            {showIcon && <FaApple className="mb-1" />}
             {text}
           </Button>
           <div
