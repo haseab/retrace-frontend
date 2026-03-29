@@ -652,8 +652,6 @@ export default function FeedbackPage() {
 
     setIsListLoading(true);
     setIsListLoadingMore(false);
-    setListIssues([]);
-    setListHasMore(false);
 
     try {
       const data = await fetchFeedbackPage({
@@ -721,16 +719,16 @@ export default function FeedbackPage() {
     };
 
     setIsKanbanLoading(true);
-    setKanbanIssuesByStatus(createEmptyIssuesByStatus());
-    setKanbanPagination({
-      open: { hasMore: false, isLoading: true },
-      in_progress: { hasMore: false, isLoading: true },
-      to_notify: { hasMore: false, isLoading: true },
-      notified: { hasMore: false, isLoading: true },
-      resolved: { hasMore: false, isLoading: true },
-      closed: { hasMore: false, isLoading: true },
-      back_burner: { hasMore: false, isLoading: true },
-    });
+    // Keep current cards visible during refresh and swap each column in place as new data arrives.
+    setKanbanPagination((prev) =>
+      KANBAN_STATUSES.reduce((next, status) => {
+        next[status] = {
+          ...(prev[status] ?? { hasMore: false, isLoading: false }),
+          isLoading: true,
+        };
+        return next;
+      }, createEmptyColumnPagination())
+    );
 
     try {
       await Promise.all(
@@ -765,7 +763,7 @@ export default function FeedbackPage() {
             setKanbanPagination((prev) => ({
               ...prev,
               [status]: {
-                hasMore: false,
+                hasMore: prev[status]?.hasMore ?? false,
                 isLoading: false,
               },
             }));

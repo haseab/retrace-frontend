@@ -51,14 +51,19 @@ export function IssueCard({
             ? "border-[hsl(var(--primary))] ring-1 ring-[hsl(var(--primary))] shadow-md shadow-[hsl(var(--primary))]/10"
             : isUnread
               ? "border-sky-400/60 ring-1 ring-sky-400/40 shadow-[0_0_0_1px_rgba(56,189,248,0.3),0_0_16px_rgba(56,189,248,0.15)] hover:border-sky-300/70"
-              : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
+            : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]/50"
         }`}
       >
-        <span className={`absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-medium rounded border ${sourceConfig.color}`}>
-          {sourceConfig.label}
-        </span>
+        <div className="absolute top-3 right-3 flex items-center gap-1">
+          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded border border-[hsl(var(--border))] bg-[hsl(var(--secondary))] text-[hsl(var(--muted-foreground))] font-mono tabular-nums">
+            #{issue.id}
+          </span>
+          <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded border ${sourceConfig.color}`}>
+            {sourceConfig.label}
+          </span>
+        </div>
 
-        <div className="flex items-center gap-2 mb-2 pr-16">
+        <div className="flex items-center gap-2 mb-2 pr-28">
           {isUnread && (
             <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded border border-sky-400/40 bg-sky-500/10 text-sky-200">
               Unread
