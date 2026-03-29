@@ -891,8 +891,9 @@ export async function POST(request: NextRequest) {
           frame_count, segment_count, database_size_mb, recent_errors,
           recent_logs, diagnostics_timestamp, settings_snapshot, display_info,
           process_info, accessibility_info, performance_info, emergency_crash_reports,
-          display_count, has_screenshot, screenshot_data, external_source, external_id, external_url
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          display_count, has_screenshot, screenshot_data, external_source, external_id, external_url,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
       `,
       args: [
         body.type,
@@ -1066,7 +1067,7 @@ export async function GET(request: NextRequest) {
       "updated_at",
     ].join(", ");
 
-    let sql = `SELECT ${selectColumns} FROM feedback WHERE ${whereSql} ORDER BY updated_at DESC`;
+    let sql = `SELECT ${selectColumns} FROM feedback WHERE ${whereSql} ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, id DESC`;
     const queryArgs: (string | number)[] = [...args];
     sql += " LIMIT ? OFFSET ?";
     queryArgs.push(limit + 1, offset);

@@ -114,6 +114,18 @@ async function runNormalizedDiagnosticsBackfillIfNeeded() {
   });
 }
 
+async function backfillNullFeedbackUpdatedAt() {
+  try {
+    await db.execute(`
+      UPDATE feedback
+      SET updated_at = COALESCE(created_at, datetime('now'))
+      WHERE updated_at IS NULL
+    `);
+  } catch {
+    // Ignore errors here
+  }
+}
+
 // Run migrations for existing tables
 async function runMigrations() {
   if (await isMigrationComplete(FEEDBACK_SCHEMA_MIGRATIONS_KEY)) {
@@ -142,12 +154,7 @@ async function runMigrations() {
 
   await ensureFeedbackDiagnosticsTables(db);
 
-  // Backfill NULL updated_at with created_at
-  try {
-    await db.execute(`UPDATE feedback SET updated_at = created_at WHERE updated_at IS NULL`);
-  } catch {
-    // Ignore errors here
-  }
+  await backfillNullFeedbackUpdatedAt();
 
   try {
     await db.execute(`UPDATE feedback SET is_read = 0 WHERE is_read IS NULL`);
@@ -210,6 +217,10 @@ export async function initDatabase() {
 
   // Run migrations for existing tables (add columns if they don't exist)
   await runMigrations();
+
+  // Keep this outside the one-time migration gate so rows inserted into older
+  // schemas still get repaired on startup.
+  await backfillNullFeedbackUpdatedAt();
 
   // Safety migration: older DBs may have migration state marked complete before
   // external-link columns were introduced. Ensure these columns exist before
