@@ -40,6 +40,10 @@ export function KanbanColumn({
 }: KanbanColumnProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const previousIssueIdsRef = useRef<Set<number>>(new Set());
+  const animatedIssueIdsRef = useRef<Set<number>>(new Set());
+  const animationDelayByIdRef = useRef<Map<number, string>>(new Map());
+  const hasAnimatedInitialLoadRef = useRef(false);
 
   const { setNodeRef, isOver } = useDroppable({
     id: status,
@@ -81,6 +85,23 @@ export function KanbanColumn({
   const statusConfig = STATUS_CONFIG[status];
   const issueIds = issues.map((issue) => issue.id.toString());
   const unreadCount = issues.reduce((count, issue) => count + (issue.isRead ? 0 : 1), 0);
+  const previousIssueIds = previousIssueIdsRef.current;
+  const shouldAnimateInitialLoad =
+    !hasAnimatedInitialLoadRef.current &&
+    previousIssueIds.size === 0 &&
+    issues.length > 0;
+
+  useEffect(() => {
+    if (shouldAnimateInitialLoad) {
+      animatedIssueIdsRef.current = new Set(issues.map((issue) => issue.id));
+      animationDelayByIdRef.current = new Map(
+        issues.map((issue, index) => [issue.id, `${index * 30}ms`])
+      );
+      hasAnimatedInitialLoadRef.current = true;
+    }
+
+    previousIssueIdsRef.current = new Set(issues.map((issue) => issue.id));
+  }, [issues, shouldAnimateInitialLoad]);
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[320px] flex-1 max-h-[calc(100vh-220px)] animate-fade-in">
@@ -116,29 +137,37 @@ export function KanbanColumn({
       >
         <SortableContext items={issueIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
-            {issues.map((issue, index) => (
-              <div
-                key={issue.id}
-                className="animate-card-enter"
-                style={{ animationDelay: `${index * 30}ms` }}
-              >
-                <SortableIssueCard
-                  issue={issue}
-                  isUnread={!issue.isRead}
-                  isSelected={selectedIssueIds.has(issue.id) || selectedId === issue.id}
-                  moveAnimationPhase={
-                    movingOutIssueIds.has(issue.id)
-                      ? "out"
-                      : movingInIssueIds.has(issue.id)
-                        ? "in"
-                        : null
-                  }
-                  onClick={(event) => onSelect(issue, event)}
-                  onHover={() => onIssueHover?.(issue.id)}
-                  onContextMenu={(event) => onIssueContextMenu?.(event, issue)}
-                />
-              </div>
-            ))}
+            {issues.map((issue, index) => {
+              const shouldAnimateEnter =
+                shouldAnimateInitialLoad || animatedIssueIdsRef.current.has(issue.id);
+              const animationDelay = shouldAnimateInitialLoad
+                ? `${index * 30}ms`
+                : animationDelayByIdRef.current.get(issue.id);
+
+              return (
+                <div
+                  key={issue.id}
+                  className={shouldAnimateEnter ? "animate-card-enter" : undefined}
+                  style={shouldAnimateEnter && animationDelay ? { animationDelay } : undefined}
+                >
+                  <SortableIssueCard
+                    issue={issue}
+                    isUnread={!issue.isRead}
+                    isSelected={selectedIssueIds.has(issue.id) || selectedId === issue.id}
+                    moveAnimationPhase={
+                      movingOutIssueIds.has(issue.id)
+                        ? "out"
+                        : movingInIssueIds.has(issue.id)
+                          ? "in"
+                          : null
+                    }
+                    onClick={(event) => onSelect(issue, event)}
+                    onHover={() => onIssueHover?.(issue.id)}
+                    onContextMenu={(event) => onIssueContextMenu?.(event, issue)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </SortableContext>
 

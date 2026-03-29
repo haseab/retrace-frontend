@@ -65,11 +65,6 @@ interface SelectionRect {
   height: number;
 }
 
-function getCreatedTimestamp(createdAt: string): number {
-  const timestamp = new Date(createdAt).getTime();
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
-
 function getSelectionRect(startX: number, startY: number, endX: number, endY: number): SelectionRect {
   const left = Math.min(startX, endX);
   const top = Math.min(startY, endY);
@@ -173,12 +168,6 @@ export function KanbanBoard({
   }, [contextMenu, issuesById]);
 
   const primaryContextMenuIssue = contextMenuIssues.length === 1 ? contextMenuIssues[0] : null;
-
-  const sortedIssuesByStatus = STATUSES.reduce((acc, status) => {
-    const issues = issuesByStatus[status] ?? [];
-    acc[status] = [...issues].sort((a, b) => getCreatedTimestamp(b.createdAt) - getCreatedTimestamp(a.createdAt));
-    return acc;
-  }, {} as Record<FeedbackStatus, FeedbackItem[]>);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -623,7 +612,7 @@ export function KanbanBoard({
               >
                 <KanbanColumn
                   status={status}
-                  issues={sortedIssuesByStatus[status]}
+                  issues={issuesByStatus[status] ?? []}
                   hasMore={hasMoreByStatus[status]}
                   isLoadingMore={isLoadingByStatus[status]}
                   onLoadMore={onLoadMore}

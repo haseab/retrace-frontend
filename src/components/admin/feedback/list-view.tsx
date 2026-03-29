@@ -33,6 +33,10 @@ export function ListView({
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const previousIssueIdsRef = useRef<Set<number>>(new Set());
+  const animatedIssueIdsRef = useRef<Set<number>>(new Set());
+  const animationDelayByIdRef = useRef<Map<number, string>>(new Map());
+  const hasAnimatedInitialLoadRef = useRef(false);
 
   useEffect(() => {
     if (!hasMore || isLoadingMore) {
@@ -94,6 +98,23 @@ export function ListView({
     }
     return sortDirection === "asc" ? comparison : -comparison;
   });
+  const previousIssueIds = previousIssueIdsRef.current;
+  const shouldAnimateInitialLoad =
+    !hasAnimatedInitialLoadRef.current &&
+    previousIssueIds.size === 0 &&
+    issues.length > 0;
+
+  useEffect(() => {
+    if (shouldAnimateInitialLoad) {
+      animatedIssueIdsRef.current = new Set(issues.map((issue) => issue.id));
+      animationDelayByIdRef.current = new Map(
+        issues.map((issue, index) => [issue.id, `${index * 20}ms`])
+      );
+      hasAnimatedInitialLoadRef.current = true;
+    }
+
+    previousIssueIdsRef.current = new Set(issues.map((issue) => issue.id));
+  }, [issues, shouldAnimateInitialLoad]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
@@ -128,6 +149,11 @@ export function ListView({
               const typeConfig = TYPE_CONFIG[issue.type] || { label: issue.type, color: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
               const sourceConfig = SOURCE_CONFIG[issue.externalSource] || SOURCE_CONFIG.app;
               const isSelected = selectedId === issue.id;
+              const shouldAnimateEnter =
+                shouldAnimateInitialLoad || animatedIssueIdsRef.current.has(issue.id);
+              const animationDelay = shouldAnimateInitialLoad
+                ? `${index * 20}ms`
+                : animationDelayByIdRef.current.get(issue.id);
 
               return (
                 <tr
@@ -135,12 +161,14 @@ export function ListView({
                   data-feedback-select-trigger="true"
                   onClick={() => onSelect(issue)}
                   onMouseEnter={() => onIssueHover?.(issue.id)}
-                  className={`border-b border-[hsl(var(--border))] cursor-pointer transition-all duration-200 animate-card-enter ${
+                  className={`border-b border-[hsl(var(--border))] cursor-pointer transition-all duration-200 ${
+                    shouldAnimateEnter ? "animate-card-enter " : ""
+                  }${
                     isSelected
                       ? "bg-[hsl(var(--primary))]/10 shadow-inner"
                       : "hover:bg-[hsl(var(--secondary))] hover:shadow-sm"
                   }`}
-                  style={{ animationDelay: `${index * 20}ms` }}
+                  style={shouldAnimateEnter && animationDelay ? { animationDelay } : undefined}
                 >
                   <td className="px-4 py-3 text-sm text-[hsl(var(--muted-foreground))]">
                     {issue.id}
