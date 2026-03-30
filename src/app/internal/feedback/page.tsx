@@ -149,6 +149,7 @@ function toExportIssueRecord(bundle: ExportIssueBundle) {
       performanceInfo: issue.performanceInfo,
       recentErrors: issue.recentErrors,
       recentLogs: issue.recentLogs,
+      recentMetricEvents: issue.recentMetricEvents,
       emergencyCrashReports: issue.emergencyCrashReports,
     },
     timestamps: {
@@ -245,6 +246,7 @@ function buildLlmExportText({
     "issue.diagnostics.performanceInfo: cpu/memory/power/thermal metrics",
     "issue.diagnostics.recentErrors: bounded recent error lines",
     "issue.diagnostics.recentLogs: bounded recent log lines",
+    "issue.diagnostics.recentMetricEvents: sanitized recent action trail from daily metrics",
     "issue.diagnostics.emergencyCrashReports: captured crash report text",
     "issue.timestamps: create/update timestamps for ordering and recency",
     "issue.timestamps.createdAt: original submission time",

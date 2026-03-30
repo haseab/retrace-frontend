@@ -11,7 +11,7 @@ export const db = createClient({
 });
 
 const NORMALIZED_DIAGNOSTICS_BACKFILL_KEY = "normalized_feedback_diagnostics_backfill_v1";
-const FEEDBACK_SCHEMA_MIGRATIONS_KEY = "feedback_schema_migrations_v3";
+const FEEDBACK_SCHEMA_MIGRATIONS_KEY = "feedback_schema_migrations_v4";
 
 // Helper to safely add a column if it doesn't exist
 async function addColumnIfNotExists(table: string, column: string, definition: string) {
@@ -147,6 +147,7 @@ async function runMigrations() {
   await addColumnIfNotExists("feedback", "accessibility_info", "TEXT");
   await addColumnIfNotExists("feedback", "performance_info", "TEXT");
   await addColumnIfNotExists("feedback", "emergency_crash_reports", "TEXT");
+  await addColumnIfNotExists("feedback", "recent_metric_events", "TEXT");
   await addColumnIfNotExists("feedback", "display_count", "INTEGER DEFAULT 0");
   await addColumnIfNotExists("feedback", "external_source", "TEXT");
   await addColumnIfNotExists("feedback", "external_id", "TEXT");
@@ -204,6 +205,7 @@ export async function initDatabase() {
       accessibility_info TEXT,
       performance_info TEXT,
       emergency_crash_reports TEXT,
+      recent_metric_events TEXT,
       display_count INTEGER DEFAULT 0,
       has_screenshot INTEGER DEFAULT 0,
       screenshot_data BLOB,

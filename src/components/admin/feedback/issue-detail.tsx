@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { FeedbackItem, FeedbackStatus, FeedbackPriority, FeedbackNote, STATUS_CONFIG, PRIORITY_CONFIG, SOURCE_CONFIG, TYPE_CONFIG } from "@/lib/types/feedback";
 import { authFetch } from "@/lib/client-api";
 import { getDisplayDescription } from "@/lib/feedback-display";
+import { RecentMetricEventsSection } from "@/components/admin/feedback/recent-metric-events-section";
 import {
   Dialog,
   DialogContent,
@@ -1045,6 +1046,11 @@ export function IssueDetail({
               </div>
             </div>
           )}
+
+          <RecentMetricEventsSection
+            events={issue.recentMetricEvents}
+            formatDate={formatDate}
+          />
 
 
           {/* Recent Errors */}

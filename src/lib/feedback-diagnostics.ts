@@ -1,6 +1,7 @@
 import type { Client } from "@libsql/client";
 import { extractLeadingBracketTokens } from "@/lib/feedback-display";
 import { writeStructuredLog } from "@/lib/api-route-logger";
+import type { DiagnosticMetricEvent } from "@/lib/types/feedback";
 
 export interface FeedbackDisplay {
   index: number;
@@ -60,6 +61,7 @@ export interface FeedbackDiagnosticsPayload {
   processInfo?: FeedbackProcessInfo;
   accessibilityInfo?: FeedbackAccessibilityInfo;
   performanceInfo?: FeedbackPerformanceInfo;
+  recentMetricEvents?: DiagnosticMetricEvent[];
   emergencyCrashReports?: string[];
 }
 
@@ -71,6 +73,7 @@ export interface UpsertFeedbackDiagnosticsOptions {
   writeSettings?: boolean;
   writeCrashReports?: boolean;
   writeLogEntries?: boolean;
+  writeMetricEvents?: boolean;
   traceId?: string;
   logTimings?: boolean;
 }
@@ -84,6 +87,7 @@ export interface GetNormalizedDiagnosticsOptions {
   includeCrashReports?: boolean;
   includeRecentErrors?: boolean;
   includeRecentLogs?: boolean;
+  includeRecentMetricEvents?: boolean;
 }
 
 export interface FeedbackApiItem {
@@ -117,6 +121,7 @@ export interface FeedbackApiItem {
   processInfo: FeedbackProcessInfo;
   accessibilityInfo: FeedbackAccessibilityInfo;
   performanceInfo: FeedbackPerformanceInfo;
+  recentMetricEvents: DiagnosticMetricEvent[];
   emergencyCrashReports: string[];
   hasScreenshot: boolean;
   externalSource: "app" | "manual" | "github" | "featurebase";
@@ -152,6 +157,7 @@ export interface NormalizedDiagnosticsState {
   hasSettings: boolean;
   hasCrashReports: boolean;
   hasLogEntries: boolean;
+  hasMetricEvents: boolean;
   performanceInfo: FeedbackPerformanceInfo;
   processInfo: FeedbackProcessInfo;
   accessibilityInfo: FeedbackAccessibilityInfo;
@@ -160,6 +166,7 @@ export interface NormalizedDiagnosticsState {
   emergencyCrashReports: string[];
   recentLogs: string[];
   recentErrors: string[];
+  recentMetricEvents: DiagnosticMetricEvent[];
 }
 
 const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"]);
@@ -433,6 +440,7 @@ function getOrCreateState(map: Map<number, NormalizedDiagnosticsState>, feedback
     hasSettings: false,
     hasCrashReports: false,
     hasLogEntries: false,
+    hasMetricEvents: false,
     performanceInfo: { ...DEFAULT_PERFORMANCE_INFO },
     processInfo: { ...DEFAULT_PROCESS_INFO },
     accessibilityInfo: { ...DEFAULT_ACCESSIBILITY_INFO },
@@ -441,6 +449,7 @@ function getOrCreateState(map: Map<number, NormalizedDiagnosticsState>, feedback
     emergencyCrashReports: [],
     recentLogs: [],
     recentErrors: [],
+    recentMetricEvents: [],
   };
 
   map.set(feedbackId, state);
@@ -652,6 +661,7 @@ export async function upsertFeedbackDiagnostics(
   const writeSettings = options.writeSettings ?? true;
   const writeCrashReports = options.writeCrashReports ?? true;
   const writeLogEntries = options.writeLogEntries ?? true;
+  const writeMetricEvents = options.writeMetricEvents ?? true;
   const shouldLogTimings = options.logTimings ?? false;
   const traceId = options.traceId ?? `feedback-${feedbackId}`;
   const stageTimings: Record<string, number> = {};
@@ -664,6 +674,7 @@ export async function upsertFeedbackDiagnostics(
   const normalizedCrashReports = normalizeStringArray(diagnostics.emergencyCrashReports);
   const normalizedRecentLogs = normalizeStringArray(diagnostics.recentLogs);
   const normalizedRecentErrors = normalizeStringArray(diagnostics.recentErrors);
+  const normalizedRecentMetricEvents = normalizeRecentMetricEvents(diagnostics.recentMetricEvents);
 
   const displayCount = Math.max(
     normalizedDisplayInfo.count,
@@ -886,6 +897,15 @@ export async function upsertFeedbackDiagnostics(
     stageTimings.logEntriesMs = Date.now() - stageStartedAt;
   }
 
+  if (writeMetricEvents) {
+    const stageStartedAt = Date.now();
+    await database.execute({
+      sql: "UPDATE feedback SET recent_metric_events = ? WHERE id = ?",
+      args: [stringifyJson(normalizedRecentMetricEvents, []), feedbackId],
+    });
+    stageTimings.metricEventsMs = Date.now() - stageStartedAt;
+  }
+
   if (writeDisplays) {
     const stageStartedAt = Date.now();
     await database.execute({
@@ -907,6 +927,7 @@ export async function upsertFeedbackDiagnostics(
           crashReports: normalizedCrashReports.length,
           recentLogs: normalizedRecentLogs.length,
           recentErrors: normalizedRecentErrors.length,
+          recentMetricEvents: normalizedRecentMetricEvents.length,
         },
         writeFlags: {
           writePerformance,
@@ -916,6 +937,7 @@ export async function upsertFeedbackDiagnostics(
           writeSettings,
           writeCrashReports,
           writeLogEntries,
+          writeMetricEvents,
         },
         stageTimings,
       },
@@ -943,6 +965,7 @@ export async function getNormalizedDiagnosticsByFeedbackIds(
   const includeCrashReports = options.includeCrashReports ?? true;
   const includeRecentErrors = options.includeRecentErrors ?? true;
   const includeRecentLogs = options.includeRecentLogs ?? true;
+  const includeRecentMetricEvents = options.includeRecentMetricEvents ?? true;
 
   const placeholders = buildInClause(ids);
   const diagnosticsById = new Map<number, NormalizedDiagnosticsState>();
@@ -1197,6 +1220,29 @@ export async function getNormalizedDiagnosticsByFeedbackIds(
     }
   }
 
+  if (includeRecentMetricEvents) {
+    const metricEventResult = await database.execute({
+      sql: `
+        SELECT id AS feedback_id, recent_metric_events
+        FROM feedback
+        WHERE id IN (${placeholders})
+      `,
+      args: ids,
+    });
+
+    for (const row of metricEventResult.rows as Record<string, unknown>[]) {
+      const feedbackId = toInteger(row.feedback_id);
+      if (feedbackId === null) {
+        continue;
+      }
+
+      const state = getOrCreateState(diagnosticsById, feedbackId);
+      state.recentMetricEvents = parseLegacyRecentMetricEvents(row);
+      state.hasMetricEvents =
+        state.recentMetricEvents.length > 0 || hasStructuredPayload(row.recent_metric_events);
+    }
+  }
+
   for (const state of diagnosticsById.values()) {
     state.displayInfo.count = state.displayInfo.displays.length;
   }
@@ -1239,6 +1285,55 @@ function parseLegacyLogs(row: Record<string, unknown>): string[] {
 
 function parseLegacyErrors(row: Record<string, unknown>): string[] {
   return normalizeStringArray(parseJson<string[]>(row.recent_errors, []));
+}
+
+function normalizeRecentMetricEvents(value: unknown): DiagnosticMetricEvent[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      return [];
+    }
+
+    const record = entry as Record<string, unknown>;
+    const timestamp = toStringValue(record.timestamp).trim();
+    const metricType = toStringValue(record.metricType).trim();
+    const summary = toStringValue(record.summary).trim();
+    const detailsRecord =
+      typeof record.details === "object" &&
+      record.details !== null &&
+      !Array.isArray(record.details)
+        ? record.details as Record<string, unknown>
+        : {};
+
+    if (timestamp.length === 0 || metricType.length === 0 || summary.length === 0) {
+      return [];
+    }
+
+    const details = Object.fromEntries(
+      Object.entries(detailsRecord).flatMap(([key, rawValue]) => {
+        const normalizedKey = key.trim();
+        const normalizedValue = toStringValue(rawValue).trim();
+        if (normalizedKey.length === 0 || normalizedValue.length === 0) {
+          return [];
+        }
+        return [[normalizedKey, normalizedValue]];
+      })
+    );
+
+    return [{
+      timestamp,
+      metricType,
+      summary,
+      details,
+    }];
+  });
+}
+
+function parseLegacyRecentMetricEvents(row: Record<string, unknown>): DiagnosticMetricEvent[] {
+  return normalizeRecentMetricEvents(parseJson<unknown[]>(row.recent_metric_events, []));
 }
 
 function inferTypeFromDescription(description: string): FeedbackSummaryApiItem["type"] | null {
@@ -1358,6 +1453,9 @@ export function mapFeedbackRowToApiItem(
   const recentErrors = normalizedDiagnostics?.hasLogEntries
     ? normalizedDiagnostics.recentErrors
     : parseLegacyErrors(rawRow);
+  const recentMetricEvents = normalizedDiagnostics?.hasMetricEvents
+    ? normalizedDiagnostics.recentMetricEvents
+    : parseLegacyRecentMetricEvents(rawRow);
   const externalSource = resolveExternalSource(rawRow.external_source, tags, appVersion, buildNumber);
   const externalIdRaw = toStringValue(rawRow.external_id).trim();
   const externalUrlRaw = toStringValue(rawRow.external_url).trim();
@@ -1386,6 +1484,7 @@ export function mapFeedbackRowToApiItem(
     },
     recentErrors,
     recentLogs,
+    recentMetricEvents,
     diagnosticsTimestamp:
       rawRow.diagnostics_timestamp === null || rawRow.diagnostics_timestamp === undefined
         ? null
@@ -1507,6 +1606,7 @@ export async function backfillLegacyDiagnostics(database: Client): Promise<void>
     const normalizedCrashReports = normalizeStringArray(emergencyCrashReports);
     const normalizedRecentErrors = normalizeStringArray(recentErrors);
     const normalizedRecentLogs = normalizeStringArray(recentLogs);
+    const normalizedRecentMetricEvents = normalizeRecentMetricEvents(row.recent_metric_events);
 
     const writeSettings =
       Object.keys(normalizedSettingsSnapshot).length > 0 ||
@@ -1519,6 +1619,9 @@ export async function backfillLegacyDiagnostics(database: Client): Promise<void>
     const writePerformance = hasPerformanceData(normalizedPerformanceInfo);
     const writeCrashReports = normalizedCrashReports.length > 0;
     const writeLogEntries = normalizedRecentErrors.length > 0 || normalizedRecentLogs.length > 0;
+    const writeMetricEvents =
+      normalizedRecentMetricEvents.length > 0 ||
+      hasStructuredPayload(row.recent_metric_events);
 
     if (
       !writeSettings &&
@@ -1527,7 +1630,8 @@ export async function backfillLegacyDiagnostics(database: Client): Promise<void>
       !writeAccessibility &&
       !writePerformance &&
       !writeCrashReports &&
-      !writeLogEntries
+      !writeLogEntries &&
+      !writeMetricEvents
     ) {
       continue;
     }
@@ -1544,6 +1648,7 @@ export async function backfillLegacyDiagnostics(database: Client): Promise<void>
         emergencyCrashReports: normalizedCrashReports,
         recentErrors: normalizedRecentErrors,
         recentLogs: normalizedRecentLogs,
+        recentMetricEvents: normalizedRecentMetricEvents,
       },
       {
         writeSettings,
@@ -1553,6 +1658,7 @@ export async function backfillLegacyDiagnostics(database: Client): Promise<void>
         writePerformance,
         writeCrashReports,
         writeLogEntries,
+        writeMetricEvents,
       }
     );
   }

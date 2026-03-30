@@ -61,6 +61,13 @@ export interface DiagnosticPerformanceInfo {
   batteryLevel: number | null;
 }
 
+export interface DiagnosticMetricEvent {
+  timestamp: string;
+  metricType: string;
+  summary: string;
+  details: Record<string, string>;
+}
+
 // Note/comment on a feedback item
 export interface FeedbackNote {
   id: number;
@@ -96,6 +103,7 @@ export interface FeedbackItem {
   processInfo: DiagnosticProcessInfo;
   accessibilityInfo: DiagnosticAccessibilityInfo;
   performanceInfo: DiagnosticPerformanceInfo;
+  recentMetricEvents: DiagnosticMetricEvent[];
   emergencyCrashReports: string[];
   hasScreenshot: boolean;
   externalSource: FeedbackSource;
@@ -179,6 +187,7 @@ export function hydrateFeedbackSummary(summary: FeedbackSummaryItem): FeedbackIt
       powerSource: "unknown",
       batteryLevel: null,
     },
+    recentMetricEvents: [],
     emergencyCrashReports: [],
   };
 }

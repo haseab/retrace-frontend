@@ -29,6 +29,7 @@ const FEEDBACK_DETAIL_COLUMNS_WITHOUT_RECENT_LOGS = [
   "segment_count",
   "database_size_mb",
   "recent_errors",
+  "recent_metric_events",
   "diagnostics_timestamp",
   "settings_snapshot",
   "display_info",

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useState } from "react";
-import { FeedbackType } from "@/lib/types/feedback";
+import type { DiagnosticMetricEvent, FeedbackType } from "@/lib/types/feedback";
 import { authFetch } from "@/lib/client-api";
 
 const FEEDBACK_TYPE_OPTIONS: Array<{ value: FeedbackType; label: string }> = [
@@ -84,6 +84,7 @@ interface FeedbackSubmissionPayload {
       powerSource: string;
       batteryLevel: number | null;
     };
+    recentMetricEvents: DiagnosticMetricEvent[];
     emergencyCrashReports: string[];
   };
   includeScreenshot: boolean;
@@ -199,6 +200,7 @@ function buildDiagnostics(timestamp: string): FeedbackSubmissionPayload["diagnos
       powerSource: "unknown",
       batteryLevel: null,
     },
+    recentMetricEvents: [],
     emergencyCrashReports: [],
   };
 }

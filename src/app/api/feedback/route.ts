@@ -17,6 +17,7 @@ import type {
   FeedbackPerformanceInfo,
   FeedbackProcessInfo,
 } from "@/lib/feedback-diagnostics";
+import type { DiagnosticMetricEvent } from "@/lib/types/feedback";
 
 // Feedback submission structure matching FeedbackModels.swift
 interface FeedbackSubmission {
@@ -47,6 +48,7 @@ interface FeedbackSubmission {
     processInfo?: FeedbackProcessInfo;
     accessibilityInfo?: FeedbackAccessibilityInfo;
     performanceInfo?: FeedbackPerformanceInfo;
+    recentMetricEvents?: DiagnosticMetricEvent[];
     emergencyCrashReports?: string[];
   };
   includeScreenshot: boolean;
@@ -68,6 +70,8 @@ const MAX_FEEDBACK_RECENT_ERRORS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECEN
 const MAX_FEEDBACK_RECENT_ERROR_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_ERROR_CHARS", 1_500);
 const MAX_FEEDBACK_RECENT_LOGS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOGS", 600);
 const MAX_FEEDBACK_RECENT_LOG_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOG_CHARS", 2_000);
+const MAX_FEEDBACK_RECENT_METRIC_EVENTS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_METRIC_EVENTS", 200);
+const MAX_FEEDBACK_RECENT_METRIC_EVENT_DETAIL_KEYS = 12;
 const MAX_FEEDBACK_CRASH_REPORTS = getPositiveIntegerFromEnv("MAX_FEEDBACK_CRASH_REPORTS", 20);
 const MAX_FEEDBACK_CRASH_REPORT_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_CRASH_REPORT_CHARS", 50_000);
 const MAX_FEEDBACK_SCREENSHOT_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_SCREENSHOT_BYTES", 5 * 1024 * 1024);
@@ -173,6 +177,31 @@ function getDiagnosticsString(
   return { ok: true, value: raw };
 }
 
+function normalizeRequiredBoundedString(
+  value: unknown,
+  fieldName: string,
+  maxChars: number
+): { ok: true; value: string } | { ok: false; status: 400 | 413; error: string } {
+  const normalized = String(value ?? "").trim();
+  if (normalized.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Invalid ${fieldName}; expected non-empty string.`,
+    };
+  }
+
+  if (normalized.length > maxChars) {
+    return {
+      ok: false,
+      status: 413,
+      error: `${fieldName} exceeds max length of ${maxChars} characters.`,
+    };
+  }
+
+  return { ok: true, value: normalized };
+}
+
 function parseNumber(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -220,6 +249,144 @@ function normalizeStringArray(
     }
 
     normalized.push(entry);
+  }
+
+  return { ok: true, value: normalized };
+}
+
+function normalizeStringRecord(
+  value: unknown,
+  fieldName: string,
+  maxEntries: number,
+  maxChars: number
+): { ok: true; value: Record<string, string> } | { ok: false; status: 400 | 413; error: string } {
+  if (!isRecord(value)) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Invalid ${fieldName}; expected key-value object.`,
+    };
+  }
+
+  const entries = Object.entries(value);
+  if (entries.length > maxEntries) {
+    return {
+      ok: false,
+      status: 413,
+      error: `${fieldName} exceeds max key count of ${maxEntries}.`,
+    };
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [rawKey, rawValue] of entries) {
+    const key = rawKey.trim();
+    const entryValue = String(rawValue ?? "").trim();
+    if (key.length === 0 || entryValue.length === 0) {
+      continue;
+    }
+
+    if (key.length > maxChars) {
+      return {
+        ok: false,
+        status: 413,
+        error: `${fieldName} key exceeds max length of ${maxChars} characters.`,
+      };
+    }
+
+    if (entryValue.length > maxChars) {
+      return {
+        ok: false,
+        status: 413,
+        error: `${fieldName}.${key} exceeds max length of ${maxChars} characters.`,
+      };
+    }
+
+    normalized[key] = entryValue;
+  }
+
+  return { ok: true, value: normalized };
+}
+
+function normalizeRecentMetricEvents(
+  value: unknown,
+  fieldName: string
+):
+  | {
+      ok: true;
+      value: DiagnosticMetricEvent[];
+    }
+  | { ok: false; status: 400 | 413; error: string } {
+  if (!Array.isArray(value)) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Invalid ${fieldName}; expected array of objects.`,
+    };
+  }
+
+  if (value.length > MAX_FEEDBACK_RECENT_METRIC_EVENTS) {
+    return {
+      ok: false,
+      status: 413,
+      error: `${fieldName} exceeds max item count of ${MAX_FEEDBACK_RECENT_METRIC_EVENTS}.`,
+    };
+  }
+
+  const normalized: DiagnosticMetricEvent[] = [];
+
+  for (let index = 0; index < value.length; index += 1) {
+    const entry = value[index];
+    if (!isRecord(entry)) {
+      return {
+        ok: false,
+        status: 400,
+        error: `Invalid ${fieldName}[${index}]; expected object.`,
+      };
+    }
+
+    const timestampResult = normalizeRequiredBoundedString(
+      entry.timestamp,
+      `${fieldName}[${index}].timestamp`,
+      MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+    );
+    if (!timestampResult.ok) {
+      return timestampResult;
+    }
+
+    const metricTypeResult = normalizeRequiredBoundedString(
+      entry.metricType,
+      `${fieldName}[${index}].metricType`,
+      MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+    );
+    if (!metricTypeResult.ok) {
+      return metricTypeResult;
+    }
+
+    const summaryResult = normalizeRequiredBoundedString(
+      entry.summary,
+      `${fieldName}[${index}].summary`,
+      MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+    );
+    if (!summaryResult.ok) {
+      return summaryResult;
+    }
+
+    const detailsResult = normalizeStringRecord(
+      entry.details ?? {},
+      `${fieldName}[${index}].details`,
+      MAX_FEEDBACK_RECENT_METRIC_EVENT_DETAIL_KEYS,
+      MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+    );
+    if (!detailsResult.ok) {
+      return detailsResult;
+    }
+
+    normalized.push({
+      timestamp: timestampResult.value,
+      metricType: metricTypeResult.value,
+      summary: summaryResult.value,
+      details: detailsResult.value,
+    });
   }
 
   return { ok: true, value: normalized };
@@ -634,6 +801,19 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
     return crashReportsResult;
   }
 
+  const recentMetricEventsResult = diagnostics.recentMetricEvents === undefined
+    ? {
+        ok: true as const,
+        value: [] as DiagnosticMetricEvent[],
+      }
+    : normalizeRecentMetricEvents(
+        diagnostics.recentMetricEvents,
+        "diagnostics.recentMetricEvents"
+      );
+  if (!recentMetricEventsResult.ok) {
+    return recentMetricEventsResult;
+  }
+
   const settingsSnapshot = diagnostics.settingsSnapshot;
   if (settingsSnapshot !== undefined && !isRecord(settingsSnapshot)) {
     return {
@@ -729,6 +909,7 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
       processInfo: diagnostics.processInfo as FeedbackProcessInfo | undefined,
       accessibilityInfo: diagnostics.accessibilityInfo as FeedbackAccessibilityInfo | undefined,
       performanceInfo: diagnostics.performanceInfo as FeedbackPerformanceInfo | undefined,
+      recentMetricEvents: recentMetricEventsResult.value,
     },
     email: typeof body.email === "string" ? body.email : undefined,
     externalSource: typeof body.externalSource === "string" ? body.externalSource : undefined,
@@ -846,6 +1027,7 @@ export async function POST(request: NextRequest) {
           ? Object.keys(body.diagnostics.settingsSnapshot).length
           : 0,
         crashReports: body.diagnostics?.emergencyCrashReports?.length ?? 0,
+        recentMetricEvents: body.diagnostics?.recentMetricEvents?.length ?? 0,
       },
     });
 
@@ -954,6 +1136,7 @@ export async function POST(request: NextRequest) {
       accessibilityInfo: body.diagnostics.accessibilityInfo || DEFAULT_ACCESSIBILITY_INFO,
       performanceInfo: body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO,
       emergencyCrashReports: body.diagnostics.emergencyCrashReports || [],
+      recentMetricEvents: body.diagnostics.recentMetricEvents || [],
     }, {
       traceId,
       logTimings: true,
