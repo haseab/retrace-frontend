@@ -39,7 +39,11 @@ export function RecentMetricEventsSection({
           </button>
         )}
       </div>
-      <div className="space-y-2">
+      <div
+        className={`space-y-2 overflow-y-auto pr-1 ${
+          expanded ? "max-h-[400px]" : "max-h-48"
+        }`}
+      >
         {visibleEvents.map((event) => {
           const detailEntries = Object.entries(event.details);
 
@@ -71,12 +75,12 @@ export function RecentMetricEventsSection({
             </div>
           );
         })}
-        {!expanded && events.length > INITIAL_VISIBLE_EVENT_COUNT && (
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            ... and {events.length - INITIAL_VISIBLE_EVENT_COUNT} more action(s)
-          </p>
-        )}
       </div>
+      {!expanded && events.length > INITIAL_VISIBLE_EVENT_COUNT && (
+        <p className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">
+          ... and {events.length - INITIAL_VISIBLE_EVENT_COUNT} more action(s)
+        </p>
+      )}
     </div>
   );
 }
