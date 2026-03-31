@@ -29,6 +29,13 @@ import { IssueCard } from "./issue-card";
 const STATUSES: FeedbackStatus[] = ["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"];
 const BULK_MOVE_OUT_DURATION_MS = 140;
 const BULK_MOVE_IN_DURATION_MS = 700;
+const CONTEXT_MENU_WIDTH_PX = 240;
+const MOVE_SUBMENU_WIDTH_PX = 220;
+const CONTEXT_MENU_VIEWPORT_PADDING_PX = 12;
+const MOVE_SUBMENU_GAP_PX = 4;
+const CONTEXT_MENU_HEADER_HEIGHT_PX = 54;
+const CONTEXT_MENU_ITEM_HEIGHT_PX = 38;
+const MOVE_SUBMENU_HEIGHT_PX = 304;
 
 interface KanbanBoardProps {
   issuesByStatus: Record<FeedbackStatus, FeedbackItem[]>;
@@ -37,6 +44,7 @@ interface KanbanBoardProps {
   selectedId: number | null;
   onSelect: (issue: FeedbackItem) => void;
   onUpdateStatus: (id: number, status: FeedbackStatus) => Promise<void>;
+  onUpdateReadState: (id: number, isRead: boolean) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onLoadMore: (status: FeedbackStatus) => void;
   onIssueHover?: (issueId: number) => void;
@@ -111,6 +119,7 @@ export function KanbanBoard({
   selectedId,
   onSelect,
   onUpdateStatus,
+  onUpdateReadState,
   onDelete,
   onLoadMore,
   onIssueHover,
@@ -125,6 +134,8 @@ export function KanbanBoard({
   const [deleteIssueError, setDeleteIssueError] = useState<string | null>(null);
 
   const [isBulkMoving, setIsBulkMoving] = useState(false);
+  const [isUpdatingReadState, setIsUpdatingReadState] = useState(false);
+  const [isMoveSubmenuOpen, setIsMoveSubmenuOpen] = useState(false);
   const [bulkActionError, setBulkActionError] = useState<string | null>(null);
   const [bulkMoveTargetStatus, setBulkMoveTargetStatus] = useState<FeedbackStatus | null>(null);
   const [movingOutIssueIds, setMovingOutIssueIds] = useState<number[]>([]);
@@ -132,6 +143,7 @@ export function KanbanBoard({
 
   const boardRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const moveSubmenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const clearMovingStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allIssues = STATUSES.flatMap((status) => issuesByStatus[status] ?? []);
@@ -168,6 +180,13 @@ export function KanbanBoard({
   }, [contextMenu, issuesById]);
 
   const primaryContextMenuIssue = contextMenuIssues.length === 1 ? contextMenuIssues[0] : null;
+  const unreadIssueCount = contextMenuIssues.filter((issue) => !issue.isRead).length;
+  const readIssueCount = contextMenuIssues.length - unreadIssueCount;
+  const contextMenuActionCount =
+    (primaryContextMenuIssue ? 1 : 0) +
+    (unreadIssueCount > 0 ? 1 : 0) +
+    (readIssueCount > 0 ? 1 : 0) +
+    2;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -189,21 +208,63 @@ export function KanbanBoard({
       return { left: contextMenu.x, top: contextMenu.y };
     }
 
-    const menuWidth = 248;
-    const menuHeight = contextMenu.issueIds.length > 1 ? 380 : 418;
-    const viewportPadding = 12;
+    const menuHeight =
+      CONTEXT_MENU_HEADER_HEIGHT_PX + (contextMenuActionCount * CONTEXT_MENU_ITEM_HEIGHT_PX);
 
     return {
       left: Math.max(
-        viewportPadding,
-        Math.min(contextMenu.x, window.innerWidth - menuWidth - viewportPadding)
+        CONTEXT_MENU_VIEWPORT_PADDING_PX,
+        Math.min(
+          contextMenu.x,
+          window.innerWidth - CONTEXT_MENU_WIDTH_PX - CONTEXT_MENU_VIEWPORT_PADDING_PX
+        )
       ),
       top: Math.max(
-        viewportPadding,
-        Math.min(contextMenu.y, window.innerHeight - menuHeight - viewportPadding)
+        CONTEXT_MENU_VIEWPORT_PADDING_PX,
+        Math.min(
+          contextMenu.y,
+          window.innerHeight - menuHeight - CONTEXT_MENU_VIEWPORT_PADDING_PX
+        )
       ),
     };
-  }, [contextMenu]);
+  }, [contextMenu, contextMenuActionCount]);
+
+  const moveSubmenuDirection = useMemo(() => {
+    if (!contextMenuPosition || typeof window === "undefined") {
+      return "right";
+    }
+
+    const availableRightSpace =
+      window.innerWidth
+      - contextMenuPosition.left
+      - CONTEXT_MENU_WIDTH_PX
+      - CONTEXT_MENU_VIEWPORT_PADDING_PX;
+
+    return availableRightSpace >= MOVE_SUBMENU_WIDTH_PX + MOVE_SUBMENU_GAP_PX
+      ? "right"
+      : "left";
+  }, [contextMenuPosition]);
+
+  const moveSubmenuTop = useMemo(() => {
+    if (!isMoveSubmenuOpen || !contextMenuPosition || !moveSubmenuTriggerRef.current) {
+      return 0;
+    }
+
+    if (typeof window === "undefined") {
+      return 0;
+    }
+
+    const triggerRect = moveSubmenuTriggerRef.current.getBoundingClientRect();
+    const preferredTop = triggerRect.top - contextMenuPosition.top - 6;
+    const minTop = CONTEXT_MENU_VIEWPORT_PADDING_PX - contextMenuPosition.top;
+    const maxTop =
+      window.innerHeight
+      - contextMenuPosition.top
+      - MOVE_SUBMENU_HEIGHT_PX
+      - CONTEXT_MENU_VIEWPORT_PADDING_PX;
+
+    return Math.max(minTop, Math.min(preferredTop, maxTop));
+  }, [contextMenuPosition, isMoveSubmenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -212,6 +273,10 @@ export function KanbanBoard({
       }
     };
   }, []);
+
+  useEffect(() => {
+    setIsMoveSubmenuOpen(false);
+  }, [contextMenu]);
 
   useEffect(() => {
     const allIssueIds = new Set(allIssues.map((issue) => issue.id));
@@ -482,8 +547,41 @@ export function KanbanBoard({
     setContextMenu(null);
   };
 
+  const handleSetIssuesReadStateFromMenu = async (isRead: boolean) => {
+    if (isBulkMoving || isUpdatingReadState || contextMenuIssues.length === 0) {
+      return;
+    }
+
+    const issueIdsToUpdate = contextMenuIssues
+      .filter((issue) => issue.isRead !== isRead)
+      .map((issue) => issue.id);
+
+    setContextMenu(null);
+    if (issueIdsToUpdate.length === 0) {
+      return;
+    }
+
+    setBulkActionError(null);
+    setIsUpdatingReadState(true);
+
+    const results = await Promise.allSettled(
+      issueIdsToUpdate.map((issueId) => onUpdateReadState(issueId, isRead))
+    );
+    const failedCount = results.filter((result) => result.status === "rejected").length;
+
+    setIsUpdatingReadState(false);
+
+    if (failedCount > 0) {
+      setBulkActionError(
+        failedCount === issueIdsToUpdate.length
+          ? `Failed to mark selected issues as ${isRead ? "read" : "unread"}.`
+          : `Updated ${issueIdsToUpdate.length - failedCount} issue${issueIdsToUpdate.length - failedCount === 1 ? "" : "s"}, but ${failedCount} failed.`
+      );
+    }
+  };
+
   const handleMoveIssuesFromMenu = async (targetStatus: FeedbackStatus) => {
-    if (isBulkMoving || contextMenuIssues.length === 0) {
+    if (isBulkMoving || isUpdatingReadState || contextMenuIssues.length === 0) {
       return;
     }
 
@@ -572,6 +670,7 @@ export function KanbanBoard({
   };
 
   const selectedIssueCount = selectedIssueIds.length;
+  const isContextActionPending = isBulkMoving || isUpdatingReadState;
 
   return (
     <>
@@ -581,8 +680,10 @@ export function KanbanBoard({
             ? `${selectedIssueCount} issues selected`
             : "Cmd/Ctrl+click to multi-select. Hold Shift and drag to box-select."}
         </p>
-        {isBulkMoving && (
-          <span className="text-xs text-emerald-300">Moving selected issues...</span>
+        {isContextActionPending && (
+          <span className="text-xs text-emerald-300">
+            {isBulkMoving ? "Moving selected issues..." : "Updating read state..."}
+          </span>
         )}
       </div>
 
@@ -665,79 +766,155 @@ export function KanbanBoard({
       {contextMenu && contextMenuPosition && (
         <div
           ref={contextMenuRef}
-          role="menu"
-          data-feedback-context-menu="true"
-          className="fixed z-[80] min-w-[240px] overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl shadow-black/40 backdrop-blur-sm"
+          className="fixed z-[80]"
+          onMouseLeave={() => setIsMoveSubmenuOpen(false)}
           style={{
             left: `${contextMenuPosition.left}px`,
             top: `${contextMenuPosition.top}px`,
           }}
         >
-          <div className="border-b border-[hsl(var(--border))] px-3 py-2">
-            <p className="text-xs font-medium text-[hsl(var(--foreground))]">
-              {contextMenuIssues.length === 1
-                ? `Issue #${contextMenuIssues[0].id}`
-                : `${contextMenuIssues.length} issues selected`}
-            </p>
-            <p className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
-              {contextMenuIssues.length === 1
-                ? contextMenuIssues[0].type
-                : "Bulk actions"}
-            </p>
-          </div>
+          <div
+            role="menu"
+            data-feedback-context-menu="true"
+            className="w-[240px] overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl shadow-black/40 backdrop-blur-sm"
+          >
+            <div className="border-b border-[hsl(var(--border))] px-3 py-2">
+              <p className="text-xs font-medium text-[hsl(var(--foreground))]">
+                {contextMenuIssues.length === 1
+                  ? `Issue #${contextMenuIssues[0].id}`
+                  : `${contextMenuIssues.length} issues selected`}
+              </p>
+              <p className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
+                {contextMenuIssues.length === 1
+                  ? contextMenuIssues[0].type
+                  : "Bulk actions"}
+              </p>
+            </div>
 
-          {primaryContextMenuIssue && (
+            {primaryContextMenuIssue && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleOpenIssueFromMenu}
+                onMouseEnter={() => setIsMoveSubmenuOpen(false)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))]"
+              >
+                <OpenIcon className="h-4 w-4" />
+                Open issue
+              </button>
+            )}
+
+            {unreadIssueCount > 0 && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={isUpdatingReadState}
+                onClick={() => {
+                  void handleSetIssuesReadStateFromMenu(true);
+                }}
+                onMouseEnter={() => setIsMoveSubmenuOpen(false)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ReadIcon className="h-4 w-4" />
+                {contextMenuIssues.length > 1
+                  ? `Mark ${unreadIssueCount} as read`
+                  : "Mark as read"}
+              </button>
+            )}
+
+            {readIssueCount > 0 && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={isUpdatingReadState}
+                onClick={() => {
+                  void handleSetIssuesReadStateFromMenu(false);
+                }}
+                onMouseEnter={() => setIsMoveSubmenuOpen(false)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <UnreadIcon className="h-4 w-4" />
+                {contextMenuIssues.length > 1
+                  ? `Mark ${readIssueCount} as unread`
+                  : "Mark as unread"}
+              </button>
+            )}
+
+            <button
+              ref={moveSubmenuTriggerRef}
+              type="button"
+              role="menuitem"
+              aria-haspopup="menu"
+              aria-expanded={isMoveSubmenuOpen}
+              disabled={isContextActionPending}
+              onClick={() => setIsMoveSubmenuOpen((previousState) => !previousState)}
+              onMouseEnter={() => setIsMoveSubmenuOpen(true)}
+              className="flex w-full items-center justify-between border-t border-[hsl(var(--border))] px-3 py-2 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>Move to</span>
+              <ChevronRightIcon
+                className={`h-4 w-4 text-[hsl(var(--muted-foreground))] transition-transform ${
+                  moveSubmenuDirection === "left" ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
             <button
               type="button"
               role="menuitem"
-              onClick={handleOpenIssueFromMenu}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))]"
+              onClick={handleDeleteIssueFromMenu}
+              onMouseEnter={() => setIsMoveSubmenuOpen(false)}
+              disabled={isDeletingIssue || isContextActionPending}
+              className="flex w-full items-center gap-2 border-t border-[hsl(var(--border))] px-3 py-2 text-left text-sm text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <OpenIcon className="h-4 w-4" />
-              Open issue
+              <TrashIcon className="h-4 w-4" />
+              {contextMenuIssues.length > 1 ? `Delete ${contextMenuIssues.length} issues` : "Delete issue"}
             </button>
-          )}
-
-          <div className="border-t border-[hsl(var(--border))] px-3 py-2">
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              Move To
-            </p>
-            <div className="space-y-1">
-              {STATUSES.map((status) => {
-                const movableCount = contextMenuIssues.filter((issue) => issue.status !== status).length;
-                const isDisabled = movableCount === 0 || isBulkMoving;
-
-                return (
-                  <button
-                    key={status}
-                    type="button"
-                    role="menuitem"
-                    disabled={isDisabled}
-                    onClick={() => {
-                      void handleMoveIssuesFromMenu(status);
-                    }}
-                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span>{STATUS_CONFIG[status].label}</span>
-                    {contextMenuIssues.length > 1 && (
-                      <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{movableCount}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleDeleteIssueFromMenu}
-            disabled={isDeletingIssue}
-            className="flex w-full items-center gap-2 border-t border-[hsl(var(--border))] px-3 py-2 text-left text-sm text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <TrashIcon className="h-4 w-4" />
-            {contextMenuIssues.length > 1 ? `Delete ${contextMenuIssues.length} issues` : "Delete issue"}
-          </button>
+          {isMoveSubmenuOpen && (
+            <div
+              role="menu"
+              className="absolute w-[220px] overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl shadow-black/40 backdrop-blur-sm"
+              style={{
+                top: `${moveSubmenuTop}px`,
+                left: moveSubmenuDirection === "right"
+                  ? `${CONTEXT_MENU_WIDTH_PX + MOVE_SUBMENU_GAP_PX}px`
+                  : `${-(MOVE_SUBMENU_WIDTH_PX + MOVE_SUBMENU_GAP_PX)}px`,
+              }}
+            >
+              <div className="border-b border-[hsl(var(--border))] px-3 py-2">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  Move To
+                </p>
+              </div>
+
+              <div className="p-1">
+                {STATUSES.map((status) => {
+                  const movableCount = contextMenuIssues.filter((issue) => issue.status !== status).length;
+                  const isDisabled = movableCount === 0 || isContextActionPending;
+
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      role="menuitem"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        void handleMoveIssuesFromMenu(status);
+                      }}
+                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-[hsl(var(--secondary))] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span>{STATUS_CONFIG[status].label}</span>
+                      {contextMenuIssues.length > 1 && (
+                        <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{movableCount}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -807,6 +984,33 @@ function OpenIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
       <path d="M7 17 17 7" />
       <path d="M8 7h9v9" />
+    </svg>
+  );
+}
+
+function ReadIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path d="M4 7h16v10H4z" />
+      <path d="m4 8 8 6 8-6" />
+    </svg>
+  );
+}
+
+function UnreadIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path d="M4 7h16v10H4z" />
+      <path d="m4 8 8 5 8-5" />
+      <circle cx="18" cy="6" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path d="m9 6 6 6-6 6" />
     </svg>
   );
 }

@@ -372,6 +372,7 @@ export default function FeedbackPage() {
     back_burner: false,
   });
   const statusMutationVersionRef = useRef<Record<number, number>>({});
+  const readMutationVersionRef = useRef<Record<number, number>>({});
   const detailResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const detailPrefetchPromisesRef = useRef<Map<number, Promise<FeedbackItem>>>(new Map());
@@ -1252,21 +1253,52 @@ export default function FeedbackPage() {
     removeIssueLocally(id);
   };
 
-  const markIssueAsRead = useCallback(async (id: number) => {
+  const handleUpdateReadState = useCallback(async (id: number, isRead: boolean) => {
+    const previousIssueFromKanban = KANBAN_STATUSES.reduce<FeedbackItem | null>((found, columnStatus) => {
+      if (found) {
+        return found;
+      }
+      return kanbanIssuesByStatus[columnStatus].find((issue) => issue.id === id) ?? null;
+    }, null);
+    const previousIssue = selectedIssue?.id === id
+      ? selectedIssue
+      : (listIssues.find((issue) => issue.id === id) ?? previousIssueFromKanban ?? issueDetailsById[id] ?? null);
+
+    if (previousIssue?.isRead === isRead) {
+      return;
+    }
+
+    const mutationVersion = (readMutationVersionRef.current[id] ?? 0) + 1;
+    readMutationVersionRef.current[id] = mutationVersion;
+
+    applyIssuePatchLocally(id, { isRead });
+
     try {
       const res = await authFetch(`/api/feedback/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isRead: true }),
+        body: JSON.stringify({ isRead }),
       });
 
       if (!res.ok) {
-        throw new Error("Failed to mark issue as read");
+        throw new Error(`Failed to mark issue as ${isRead ? "read" : "unread"}`);
       }
     } catch (error) {
-      console.error("Failed to mark issue as read:", error);
+      console.error(`Failed to mark issue as ${isRead ? "read" : "unread"}:`, error);
+      if (previousIssue && readMutationVersionRef.current[id] === mutationVersion) {
+        applyIssuePatchLocally(id, { isRead: previousIssue.isRead });
+      }
+      throw error;
     }
-  }, []);
+  }, [applyIssuePatchLocally, issueDetailsById, kanbanIssuesByStatus, listIssues, selectedIssue]);
+
+  const markIssueAsRead = useCallback(async (id: number) => {
+    try {
+      await handleUpdateReadState(id, true);
+    } catch {
+      // Selection should still open even if the read marker request fails.
+    }
+  }, [handleUpdateReadState]);
 
   const handleSelectIssue = useCallback((issue: FeedbackItem) => {
     // If clicking the same card, dismiss the panel
@@ -1279,7 +1311,6 @@ export default function FeedbackPage() {
     const mergedIssue = cachedIssue ? { ...issue, ...cachedIssue } : issue;
 
     if (!mergedIssue.isRead) {
-      applyIssuePatchLocally(issue.id, { isRead: true });
       void markIssueAsRead(issue.id);
     }
 
@@ -1418,6 +1449,7 @@ export default function FeedbackPage() {
                 selectedId={selectedIssue?.id || null}
                 onSelect={handleSelectIssue}
                 onUpdateStatus={handleUpdateStatus}
+                onUpdateReadState={handleUpdateReadState}
                 onDelete={handleDeleteIssue}
                 onLoadMore={loadMoreKanbanStatus}
                 onIssueHover={prefetchIssueDetailOnHover}
