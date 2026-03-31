@@ -5,10 +5,10 @@ export type FeedbackSource = "app" | "manual" | "github" | "featurebase";
 export type ViewMode = "kanban" | "list";
 
 export interface DatabaseStats {
-  sessionCount: number;
-  frameCount: number;
-  segmentCount: number;
-  databaseSizeMB: number;
+  sessionCount: number | null;
+  frameCount: number | null;
+  segmentCount: number | null;
+  databaseSizeMB: number | null;
 }
 
 export interface DiagnosticDisplay {
@@ -28,36 +28,36 @@ export interface DiagnosticDisplayInfo {
 }
 
 export interface DiagnosticProcessInfo {
-  totalRunning: number;
-  eventMonitoringApps: number;
-  windowManagementApps: number;
-  securityApps: number;
-  hasJamf: boolean;
-  hasKandji: boolean;
-  axuiServerCPU: number;
-  windowServerCPU: number;
+  totalRunning: number | null;
+  eventMonitoringApps: number | null;
+  windowManagementApps: number | null;
+  securityApps: number | null;
+  hasJamf: boolean | null;
+  hasKandji: boolean | null;
+  axuiServerCPU: number | null;
+  windowServerCPU: number | null;
 }
 
 export interface DiagnosticAccessibilityInfo {
-  voiceOverEnabled: boolean;
-  switchControlEnabled: boolean;
-  reduceMotionEnabled: boolean;
-  increaseContrastEnabled: boolean;
-  reduceTransparencyEnabled: boolean;
-  differentiateWithoutColorEnabled: boolean;
-  displayHasInvertedColors: boolean;
+  voiceOverEnabled: boolean | null;
+  switchControlEnabled: boolean | null;
+  reduceMotionEnabled: boolean | null;
+  increaseContrastEnabled: boolean | null;
+  reduceTransparencyEnabled: boolean | null;
+  differentiateWithoutColorEnabled: boolean | null;
+  displayHasInvertedColors: boolean | null;
 }
 
 export interface DiagnosticPerformanceInfo {
-  cpuUsagePercent: number;
-  memoryUsedGB: number;
-  memoryTotalGB: number;
-  memoryPressure: string;
-  swapUsedGB: number;
-  thermalState: string;
-  processorCount: number;
-  isLowPowerModeEnabled: boolean;
-  powerSource: string;
+  cpuUsagePercent: number | null;
+  memoryUsedGB: number | null;
+  memoryTotalGB: number | null;
+  memoryPressure: string | null;
+  swapUsedGB: number | null;
+  thermalState: string | null;
+  processorCount: number | null;
+  isLowPowerModeEnabled: boolean | null;
+  powerSource: string | null;
   batteryLevel: number | null;
 }
 
@@ -143,10 +143,10 @@ export function hydrateFeedbackSummary(summary: FeedbackSummaryItem): FeedbackIt
     totalDiskSpace: "",
     freeDiskSpace: "",
     databaseStats: {
-      sessionCount: 0,
-      frameCount: 0,
-      segmentCount: 0,
-      databaseSizeMB: 0,
+      sessionCount: null,
+      frameCount: null,
+      segmentCount: null,
+      databaseSizeMB: null,
     },
     recentErrors: [],
     recentLogs: [],
@@ -159,34 +159,34 @@ export function hydrateFeedbackSummary(summary: FeedbackSummaryItem): FeedbackIt
       mainDisplayIndex: 0,
     },
     processInfo: {
-      totalRunning: 0,
-      eventMonitoringApps: 0,
-      windowManagementApps: 0,
-      securityApps: 0,
-      hasJamf: false,
-      hasKandji: false,
-      axuiServerCPU: 0,
-      windowServerCPU: 0,
+      totalRunning: null,
+      eventMonitoringApps: null,
+      windowManagementApps: null,
+      securityApps: null,
+      hasJamf: null,
+      hasKandji: null,
+      axuiServerCPU: null,
+      windowServerCPU: null,
     },
     accessibilityInfo: {
-      voiceOverEnabled: false,
-      switchControlEnabled: false,
-      reduceMotionEnabled: false,
-      increaseContrastEnabled: false,
-      reduceTransparencyEnabled: false,
-      differentiateWithoutColorEnabled: false,
-      displayHasInvertedColors: false,
+      voiceOverEnabled: null,
+      switchControlEnabled: null,
+      reduceMotionEnabled: null,
+      increaseContrastEnabled: null,
+      reduceTransparencyEnabled: null,
+      differentiateWithoutColorEnabled: null,
+      displayHasInvertedColors: null,
     },
     performanceInfo: {
-      cpuUsagePercent: 0,
-      memoryUsedGB: 0,
-      memoryTotalGB: 0,
-      memoryPressure: "unknown",
-      swapUsedGB: 0,
-      thermalState: "unknown",
-      processorCount: 0,
-      isLowPowerModeEnabled: false,
-      powerSource: "unknown",
+      cpuUsagePercent: null,
+      memoryUsedGB: null,
+      memoryTotalGB: null,
+      memoryPressure: null,
+      swapUsedGB: null,
+      thermalState: null,
+      processorCount: null,
+      isLowPowerModeEnabled: null,
+      powerSource: null,
       batteryLevel: null,
     },
     recentMetricEvents: [],

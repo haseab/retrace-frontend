@@ -30,10 +30,10 @@ interface FeedbackSubmission {
     totalDiskSpace?: string;
     freeDiskSpace?: string;
     databaseStats?: {
-      sessionCount: number;
-      frameCount: number;
-      segmentCount: number;
-      databaseSizeMB: number;
+      sessionCount?: number;
+      frameCount?: number;
+      segmentCount?: number;
+      databaseSizeMB?: number;
     };
     settingsSnapshot?: Record<string, unknown>;
     recentErrors?: string[];
@@ -204,9 +204,17 @@ function normalizeRequiredBoundedString(
   return { ok: true, value: normalized };
 }
 
-function parseNumber(value: unknown): number {
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value === "string" && value.trim().length === 0) {
+    return undefined;
+  }
+
   const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function normalizeStringArray(
@@ -995,10 +1003,10 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
       freeDiskSpace: freeDiskSpaceResult.value,
       databaseStats: databaseStats
         ? {
-            sessionCount: parseNumber(databaseStats.sessionCount),
-            frameCount: parseNumber(databaseStats.frameCount),
-            segmentCount: parseNumber(databaseStats.segmentCount),
-            databaseSizeMB: parseNumber(databaseStats.databaseSizeMB),
+            sessionCount: parseOptionalNumber(databaseStats.sessionCount),
+            frameCount: parseOptionalNumber(databaseStats.frameCount),
+            segmentCount: parseOptionalNumber(databaseStats.segmentCount),
+            databaseSizeMB: parseOptionalNumber(databaseStats.databaseSizeMB),
           }
         : undefined,
       recentErrors: recentErrorsResult.value,

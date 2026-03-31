@@ -28,6 +28,72 @@ interface IssueDetailProps {
   isLoadingDetail?: boolean;
 }
 
+const UNKNOWN_VALUE = "unknown";
+
+function hasTextValue(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function formatTextValue(value: string | null | undefined): string {
+  return hasTextValue(value) ? value.trim() : UNKNOWN_VALUE;
+}
+
+function formatAppVersion(value: string, buildNumber: string): string {
+  const appVersion = formatTextValue(value);
+  const build = formatTextValue(buildNumber);
+
+  if (appVersion === UNKNOWN_VALUE && build === UNKNOWN_VALUE) {
+    return UNKNOWN_VALUE;
+  }
+
+  return `${appVersion} (${build})`;
+}
+
+function formatFreeDiskSpace(value: string): string {
+  return hasTextValue(value) ? `${value.trim()} free` : UNKNOWN_VALUE;
+}
+
+function formatIntegerValue(value: number | null | undefined): string {
+  return value === null || value === undefined
+    ? UNKNOWN_VALUE
+    : Math.trunc(value).toLocaleString();
+}
+
+function formatDecimalValue(value: number | null | undefined, suffix = ""): string {
+  return value === null || value === undefined
+    ? UNKNOWN_VALUE
+    : `${value.toFixed(1)}${suffix}`;
+}
+
+function formatMemoryValue(used: number | null | undefined, total: number | null | undefined): string {
+  if (used === null || used === undefined || total === null || total === undefined) {
+    return UNKNOWN_VALUE;
+  }
+
+  return `${used.toFixed(1)} / ${total.toFixed(1)} GB`;
+}
+
+function formatBooleanValue(
+  value: boolean | null | undefined,
+  labels: { true: string; false: string } = { true: "On", false: "Off" }
+): string {
+  if (value === null || value === undefined) {
+    return UNKNOWN_VALUE;
+  }
+
+  return value ? labels.true : labels.false;
+}
+
+function formatPowerValue(powerSource: string | null | undefined, batteryLevel: number | null | undefined): string {
+  const source = formatTextValue(powerSource);
+
+  if (batteryLevel === null || batteryLevel === undefined) {
+    return source;
+  }
+
+  return `${source} (${batteryLevel}%)`;
+}
+
 export function IssueDetail({
   issue,
   onClose,
@@ -345,15 +411,28 @@ export function IssueDetail({
     setTimeout(() => setCopiedErrors(false), 2000);
   };
 
+  const accessibilityValues = [
+    issue.accessibilityInfo.voiceOverEnabled,
+    issue.accessibilityInfo.switchControlEnabled,
+    issue.accessibilityInfo.reduceMotionEnabled,
+    issue.accessibilityInfo.increaseContrastEnabled,
+    issue.accessibilityInfo.reduceTransparencyEnabled,
+    issue.accessibilityInfo.differentiateWithoutColorEnabled,
+    issue.accessibilityInfo.displayHasInvertedColors,
+  ];
+  const hasKnownAccessibilityState = accessibilityValues.some((value) => value !== null && value !== undefined);
   const enabledAccessibilityFlags = [
-    issue.accessibilityInfo.voiceOverEnabled ? "VoiceOver" : null,
-    issue.accessibilityInfo.switchControlEnabled ? "SwitchControl" : null,
-    issue.accessibilityInfo.reduceMotionEnabled ? "ReduceMotion" : null,
-    issue.accessibilityInfo.increaseContrastEnabled ? "IncreaseContrast" : null,
-    issue.accessibilityInfo.reduceTransparencyEnabled ? "ReduceTransparency" : null,
-    issue.accessibilityInfo.differentiateWithoutColorEnabled ? "DifferentiateWithoutColor" : null,
-    issue.accessibilityInfo.displayHasInvertedColors ? "InvertColors" : null,
+    issue.accessibilityInfo.voiceOverEnabled === true ? "VoiceOver" : null,
+    issue.accessibilityInfo.switchControlEnabled === true ? "SwitchControl" : null,
+    issue.accessibilityInfo.reduceMotionEnabled === true ? "ReduceMotion" : null,
+    issue.accessibilityInfo.increaseContrastEnabled === true ? "IncreaseContrast" : null,
+    issue.accessibilityInfo.reduceTransparencyEnabled === true ? "ReduceTransparency" : null,
+    issue.accessibilityInfo.differentiateWithoutColorEnabled === true ? "DifferentiateWithoutColor" : null,
+    issue.accessibilityInfo.displayHasInvertedColors === true ? "InvertColors" : null,
   ].filter((flag): flag is string => flag !== null);
+  const hasKnownProcessMarkerState =
+    issue.processInfo.hasJamf !== null ||
+    issue.processInfo.hasKandji !== null;
 
   const settingsEntries = Object.entries(issue.settingsSnapshot || {});
   const displayCount = Math.max(issue.displayCount ?? 0, issue.displayInfo.displays.length);
@@ -554,13 +633,13 @@ export function IssueDetail({
             </h3>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="px-2 py-1 bg-[hsl(var(--secondary))] rounded">
-                v{issue.appVersion}
+                App {formatTextValue(issue.appVersion)}
               </span>
               <span className="px-2 py-1 bg-[hsl(var(--secondary))] rounded">
-                macOS {issue.macOSVersion}
+                macOS {formatTextValue(issue.macOSVersion)}
               </span>
               <span className="px-2 py-1 bg-[hsl(var(--secondary))] rounded">
-                {issue.deviceModel}
+                Device {formatTextValue(issue.deviceModel)}
               </span>
             </div>
           </div>
@@ -788,19 +867,19 @@ export function IssueDetail({
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
               <span className="text-[hsl(var(--muted-foreground))]">App:</span>{" "}
-              {issue.appVersion} ({issue.buildNumber})
+              {formatAppVersion(issue.appVersion, issue.buildNumber)}
             </div>
             <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
               <span className="text-[hsl(var(--muted-foreground))]">macOS:</span>{" "}
-              {issue.macOSVersion}
+              {formatTextValue(issue.macOSVersion)}
             </div>
             <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
               <span className="text-[hsl(var(--muted-foreground))]">Device:</span>{" "}
-              {issue.deviceModel}
+              {formatTextValue(issue.deviceModel)}
             </div>
             <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
               <span className="text-[hsl(var(--muted-foreground))]">Disk:</span>{" "}
-              {issue.freeDiskSpace} free
+              {formatFreeDiskSpace(issue.freeDiskSpace)}
             </div>
             {issue.diagnosticsTimestamp && (
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5 col-span-2">
@@ -818,19 +897,21 @@ export function IssueDetail({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Sessions:</span>{" "}
-                {issue.databaseStats.sessionCount.toLocaleString()}
+                {formatIntegerValue(issue.databaseStats.sessionCount)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Frames:</span>{" "}
-                {issue.databaseStats.frameCount.toLocaleString()}
+                {formatIntegerValue(issue.databaseStats.frameCount)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Segments:</span>{" "}
-                {issue.databaseStats.segmentCount.toLocaleString()}
+                {formatIntegerValue(issue.databaseStats.segmentCount)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">DB Size:</span>{" "}
-                {issue.databaseStats.databaseSizeMB.toFixed(1)} MB
+                {issue.databaseStats.databaseSizeMB === null || issue.databaseStats.databaseSizeMB === undefined
+                  ? UNKNOWN_VALUE
+                  : `${issue.databaseStats.databaseSizeMB.toFixed(1)} MB`}
               </div>
             </div>
           </div>
@@ -843,36 +924,43 @@ export function IssueDetail({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">CPU:</span>{" "}
-                {issue.performanceInfo.cpuUsagePercent.toFixed(1)}%
+                {formatDecimalValue(issue.performanceInfo.cpuUsagePercent, "%")}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Memory:</span>{" "}
-                {issue.performanceInfo.memoryUsedGB.toFixed(1)} / {issue.performanceInfo.memoryTotalGB.toFixed(1)} GB
+                {formatMemoryValue(
+                  issue.performanceInfo.memoryUsedGB,
+                  issue.performanceInfo.memoryTotalGB
+                )}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Pressure:</span>{" "}
-                {issue.performanceInfo.memoryPressure}
+                {formatTextValue(issue.performanceInfo.memoryPressure)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Swap:</span>{" "}
-                {issue.performanceInfo.swapUsedGB.toFixed(1)} GB
+                {issue.performanceInfo.swapUsedGB === null || issue.performanceInfo.swapUsedGB === undefined
+                  ? UNKNOWN_VALUE
+                  : `${issue.performanceInfo.swapUsedGB.toFixed(1)} GB`}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Thermal:</span>{" "}
-                {issue.performanceInfo.thermalState}
+                {formatTextValue(issue.performanceInfo.thermalState)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Power:</span>{" "}
-                {issue.performanceInfo.powerSource}
-                {issue.performanceInfo.batteryLevel !== null ? " (" + issue.performanceInfo.batteryLevel + "%)" : ""}
+                {formatPowerValue(
+                  issue.performanceInfo.powerSource,
+                  issue.performanceInfo.batteryLevel
+                )}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Low Power:</span>{" "}
-                {issue.performanceInfo.isLowPowerModeEnabled ? "On" : "Off"}
+                {formatBooleanValue(issue.performanceInfo.isLowPowerModeEnabled)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Processors:</span>{" "}
-                {issue.performanceInfo.processorCount}
+                {formatIntegerValue(issue.performanceInfo.processorCount)}
               </div>
             </div>
           </div>
@@ -885,43 +973,50 @@ export function IssueDetail({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Total Running:</span>{" "}
-                {issue.processInfo.totalRunning}
+                {formatIntegerValue(issue.processInfo.totalRunning)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Event Monitor Apps:</span>{" "}
-                {issue.processInfo.eventMonitoringApps}
+                {formatIntegerValue(issue.processInfo.eventMonitoringApps)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Window Managers:</span>{" "}
-                {issue.processInfo.windowManagementApps}
+                {formatIntegerValue(issue.processInfo.windowManagementApps)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">Security/MDM:</span>{" "}
-                {issue.processInfo.securityApps}
+                {formatIntegerValue(issue.processInfo.securityApps)}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">AXUIServer CPU:</span>{" "}
-                {issue.processInfo.axuiServerCPU.toFixed(1)}%
+                {formatDecimalValue(issue.processInfo.axuiServerCPU, "%")}
               </div>
               <div className="bg-[hsl(var(--secondary))] rounded px-2 py-1.5">
                 <span className="text-[hsl(var(--muted-foreground))]">WindowServer CPU:</span>{" "}
-                {issue.processInfo.windowServerCPU.toFixed(1)}%
+                {formatDecimalValue(issue.processInfo.windowServerCPU, "%")}
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {issue.processInfo.hasJamf && (
+              {issue.processInfo.hasJamf === true && (
                 <span className="px-2 py-0.5 text-[10px] rounded border bg-amber-500/20 text-amber-300 border-amber-500/30">
                   Jamf detected
                 </span>
               )}
-              {issue.processInfo.hasKandji && (
+              {issue.processInfo.hasKandji === true && (
                 <span className="px-2 py-0.5 text-[10px] rounded border bg-amber-500/20 text-amber-300 border-amber-500/30">
                   Kandji detected
                 </span>
               )}
-              {!issue.processInfo.hasJamf && !issue.processInfo.hasKandji && (
+              {hasKnownProcessMarkerState &&
+                issue.processInfo.hasJamf !== true &&
+                issue.processInfo.hasKandji !== true && (
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
                   No Jamf/Kandji markers
+                </span>
+              )}
+              {!hasKnownProcessMarkerState && (
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Jamf/Kandji status unknown
                 </span>
               )}
             </div>
@@ -977,6 +1072,10 @@ export function IssueDetail({
                     {flag}
                   </span>
                 ))}
+              </div>
+            ) : !hasKnownAccessibilityState ? (
+              <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                Accessibility status unknown.
               </div>
             ) : (
               <div className="text-[10px] text-[hsl(var(--muted-foreground))]">

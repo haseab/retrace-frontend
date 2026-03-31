@@ -1,7 +1,11 @@
 import type { Client } from "@libsql/client";
 import { extractLeadingBracketTokens } from "@/lib/feedback-display";
 import { writeStructuredLog } from "@/lib/api-route-logger";
-import type { DiagnosticMetricEvent } from "@/lib/types/feedback";
+import type {
+  DiagnosticMetricEvent,
+  FeedbackItem as SharedFeedbackItem,
+  FeedbackSummaryItem as SharedFeedbackSummaryItem,
+} from "@/lib/types/feedback";
 
 export interface FeedbackDisplay {
   index: number;
@@ -90,66 +94,9 @@ export interface GetNormalizedDiagnosticsOptions {
   includeRecentMetricEvents?: boolean;
 }
 
-export interface FeedbackApiItem {
-  id: number;
-  type: string;
-  email: string | null;
-  description: string;
-  isRead: boolean;
-  status: "open" | "in_progress" | "to_notify" | "notified" | "resolved" | "closed" | "back_burner";
-  priority: "low" | "medium" | "high" | "critical";
-  notes: string;
-  tags: string[];
-  appVersion: string;
-  buildNumber: string;
-  macOSVersion: string;
-  deviceModel: string;
-  totalDiskSpace: string;
-  freeDiskSpace: string;
-  databaseStats: {
-    sessionCount: number;
-    frameCount: number;
-    segmentCount: number;
-    databaseSizeMB: number;
-  };
-  recentErrors: string[];
-  recentLogs: string[];
-  diagnosticsTimestamp: string | null;
-  settingsSnapshot: Record<string, string>;
-  displayCount: number;
-  displayInfo: FeedbackDisplayInfo;
-  processInfo: FeedbackProcessInfo;
-  accessibilityInfo: FeedbackAccessibilityInfo;
-  performanceInfo: FeedbackPerformanceInfo;
-  recentMetricEvents: DiagnosticMetricEvent[];
-  emergencyCrashReports: string[];
-  includedDiagnosticSections: string[];
-  excludedDiagnosticSections: string[];
-  hasScreenshot: boolean;
-  externalSource: "app" | "manual" | "github" | "featurebase";
-  externalId: string | null;
-  externalUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export type FeedbackApiItem = SharedFeedbackItem;
 
-export interface FeedbackSummaryApiItem {
-  id: number;
-  type: "Bug Report" | "Feature Request" | "Question";
-  email: string | null;
-  description: string;
-  isRead: boolean;
-  status: FeedbackApiItem["status"];
-  priority: FeedbackApiItem["priority"];
-  appVersion: string;
-  macOSVersion: string;
-  hasScreenshot: boolean;
-  externalSource: FeedbackApiItem["externalSource"];
-  externalId: string | null;
-  externalUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export type FeedbackSummaryApiItem = SharedFeedbackSummaryItem;
 
 export interface NormalizedDiagnosticsState {
   hasPerformance: boolean;
@@ -258,6 +205,30 @@ function toInteger(value: unknown): number | null {
   return Math.trunc(parsed);
 }
 
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string" && value.trim().length === 0) {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toNullableInteger(value: unknown): number | null {
+  const parsed = toNullableNumber(value);
+  return parsed === null ? null : Math.trunc(parsed);
+}
+
+function toNullableStringValue(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return String(value);
+}
+
 function toBoolean(value: unknown): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -269,6 +240,20 @@ function toBoolean(value: unknown): boolean {
     return value === "1" || value.toLowerCase() === "true";
   }
   return false;
+}
+
+function toNullableBoolean(value: unknown): boolean | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string" && value.trim().length === 0) {
+    return null;
+  }
+  return toBoolean(value);
+}
+
+function hasOwnKey(record: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
 }
 
 function normalizeStringArray(values: unknown): string[] {
@@ -1252,6 +1237,75 @@ export async function getNormalizedDiagnosticsByFeedbackIds(
   return diagnosticsById;
 }
 
+function parseSparseStructuredRecord(value: unknown): Record<string, unknown> | null {
+  const parsed = parseJson<unknown>(value, null);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function parseSparseProcessInfo(row: Record<string, unknown>): FeedbackApiItem["processInfo"] | null {
+  const parsed = parseSparseStructuredRecord(row.process_info);
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    totalRunning: hasOwnKey(parsed, "totalRunning") ? toNullableNumber(parsed.totalRunning) : null,
+    eventMonitoringApps: hasOwnKey(parsed, "eventMonitoringApps") ? toNullableNumber(parsed.eventMonitoringApps) : null,
+    windowManagementApps: hasOwnKey(parsed, "windowManagementApps") ? toNullableNumber(parsed.windowManagementApps) : null,
+    securityApps: hasOwnKey(parsed, "securityApps") ? toNullableNumber(parsed.securityApps) : null,
+    hasJamf: hasOwnKey(parsed, "hasJamf") ? toNullableBoolean(parsed.hasJamf) : null,
+    hasKandji: hasOwnKey(parsed, "hasKandji") ? toNullableBoolean(parsed.hasKandji) : null,
+    axuiServerCPU: hasOwnKey(parsed, "axuiServerCPU") ? toNullableNumber(parsed.axuiServerCPU) : null,
+    windowServerCPU: hasOwnKey(parsed, "windowServerCPU") ? toNullableNumber(parsed.windowServerCPU) : null,
+  };
+}
+
+function parseSparseAccessibilityInfo(row: Record<string, unknown>): FeedbackApiItem["accessibilityInfo"] | null {
+  const parsed = parseSparseStructuredRecord(row.accessibility_info);
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    voiceOverEnabled: hasOwnKey(parsed, "voiceOverEnabled") ? toNullableBoolean(parsed.voiceOverEnabled) : null,
+    switchControlEnabled: hasOwnKey(parsed, "switchControlEnabled") ? toNullableBoolean(parsed.switchControlEnabled) : null,
+    reduceMotionEnabled: hasOwnKey(parsed, "reduceMotionEnabled") ? toNullableBoolean(parsed.reduceMotionEnabled) : null,
+    increaseContrastEnabled: hasOwnKey(parsed, "increaseContrastEnabled") ? toNullableBoolean(parsed.increaseContrastEnabled) : null,
+    reduceTransparencyEnabled: hasOwnKey(parsed, "reduceTransparencyEnabled") ? toNullableBoolean(parsed.reduceTransparencyEnabled) : null,
+    differentiateWithoutColorEnabled: hasOwnKey(parsed, "differentiateWithoutColorEnabled")
+      ? toNullableBoolean(parsed.differentiateWithoutColorEnabled)
+      : null,
+    displayHasInvertedColors: hasOwnKey(parsed, "displayHasInvertedColors")
+      ? toNullableBoolean(parsed.displayHasInvertedColors)
+      : null,
+  };
+}
+
+function parseSparsePerformanceInfo(row: Record<string, unknown>): FeedbackApiItem["performanceInfo"] | null {
+  const parsed = parseSparseStructuredRecord(row.performance_info);
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    cpuUsagePercent: hasOwnKey(parsed, "cpuUsagePercent") ? toNullableNumber(parsed.cpuUsagePercent) : null,
+    memoryUsedGB: hasOwnKey(parsed, "memoryUsedGB") ? toNullableNumber(parsed.memoryUsedGB) : null,
+    memoryTotalGB: hasOwnKey(parsed, "memoryTotalGB") ? toNullableNumber(parsed.memoryTotalGB) : null,
+    memoryPressure: hasOwnKey(parsed, "memoryPressure") ? toNullableStringValue(parsed.memoryPressure) : null,
+    swapUsedGB: hasOwnKey(parsed, "swapUsedGB") ? toNullableNumber(parsed.swapUsedGB) : null,
+    thermalState: hasOwnKey(parsed, "thermalState") ? toNullableStringValue(parsed.thermalState) : null,
+    processorCount: hasOwnKey(parsed, "processorCount") ? toNullableNumber(parsed.processorCount) : null,
+    isLowPowerModeEnabled: hasOwnKey(parsed, "isLowPowerModeEnabled")
+      ? toNullableBoolean(parsed.isLowPowerModeEnabled)
+      : null,
+    powerSource: hasOwnKey(parsed, "powerSource") ? toNullableStringValue(parsed.powerSource) : null,
+    batteryLevel: hasOwnKey(parsed, "batteryLevel") ? toNullableInteger(parsed.batteryLevel) : null,
+  };
+}
+
 function parseLegacySettings(row: Record<string, unknown>): Record<string, string> {
   const parsed = parseJson<Record<string, unknown>>(row.settings_snapshot, {});
   return normalizeSettingsSnapshot(parsed);
@@ -1467,6 +1521,9 @@ export function mapFeedbackRowToApiItem(
   const externalSource = resolveExternalSource(rawRow.external_source, tags, appVersion, buildNumber);
   const externalIdRaw = toStringValue(rawRow.external_id).trim();
   const externalUrlRaw = toStringValue(rawRow.external_url).trim();
+  const sparseProcessInfo = parseSparseProcessInfo(rawRow);
+  const sparseAccessibilityInfo = parseSparseAccessibilityInfo(rawRow);
+  const sparsePerformanceInfo = parseSparsePerformanceInfo(rawRow);
 
   return {
     id,
@@ -1485,10 +1542,10 @@ export function mapFeedbackRowToApiItem(
     totalDiskSpace: toStringValue(rawRow.total_disk_space),
     freeDiskSpace: toStringValue(rawRow.free_disk_space),
     databaseStats: {
-      sessionCount: toNumber(rawRow.session_count, 0),
-      frameCount: toNumber(rawRow.frame_count, 0),
-      segmentCount: toNumber(rawRow.segment_count, 0),
-      databaseSizeMB: toNumber(rawRow.database_size_mb, 0),
+      sessionCount: toNullableNumber(rawRow.session_count),
+      frameCount: toNullableNumber(rawRow.frame_count),
+      segmentCount: toNullableNumber(rawRow.segment_count),
+      databaseSizeMB: toNullableNumber(rawRow.database_size_mb),
     },
     recentErrors,
     recentLogs,
@@ -1502,15 +1559,21 @@ export function mapFeedbackRowToApiItem(
       : parseLegacySettings(rawRow),
     displayCount,
     displayInfo: effectiveDisplayInfo,
-    processInfo: normalizedDiagnostics?.hasProcess
-      ? normalizedDiagnostics.processInfo
-      : parseLegacyProcessInfo(rawRow),
-    accessibilityInfo: normalizedDiagnostics?.hasAccessibility
-      ? normalizedDiagnostics.accessibilityInfo
-      : parseLegacyAccessibilityInfo(rawRow),
-    performanceInfo: normalizedDiagnostics?.hasPerformance
-      ? normalizedDiagnostics.performanceInfo
-      : parseLegacyPerformanceInfo(rawRow),
+    processInfo: sparseProcessInfo ?? (
+      normalizedDiagnostics?.hasProcess
+        ? normalizedDiagnostics.processInfo
+        : parseLegacyProcessInfo(rawRow)
+    ),
+    accessibilityInfo: sparseAccessibilityInfo ?? (
+      normalizedDiagnostics?.hasAccessibility
+        ? normalizedDiagnostics.accessibilityInfo
+        : parseLegacyAccessibilityInfo(rawRow)
+    ),
+    performanceInfo: sparsePerformanceInfo ?? (
+      normalizedDiagnostics?.hasPerformance
+        ? normalizedDiagnostics.performanceInfo
+        : parseLegacyPerformanceInfo(rawRow)
+    ),
     emergencyCrashReports: normalizedDiagnostics?.hasCrashReports
       ? normalizedDiagnostics.emergencyCrashReports
       : parseLegacyCrashReports(rawRow),
