@@ -42,6 +42,8 @@ const FEEDBACK_DETAIL_COLUMNS_WITHOUT_RECENT_LOGS = [
   "external_source",
   "external_id",
   "external_url",
+  "included_diagnostic_sections",
+  "excluded_diagnostic_sections",
   "created_at",
   "updated_at",
 ].join(", ");

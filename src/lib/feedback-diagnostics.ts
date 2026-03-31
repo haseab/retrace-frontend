@@ -123,6 +123,8 @@ export interface FeedbackApiItem {
   performanceInfo: FeedbackPerformanceInfo;
   recentMetricEvents: DiagnosticMetricEvent[];
   emergencyCrashReports: string[];
+  includedDiagnosticSections: string[];
+  excludedDiagnosticSections: string[];
   hasScreenshot: boolean;
   externalSource: "app" | "manual" | "github" | "featurebase";
   externalId: string | null;
@@ -1287,6 +1289,10 @@ function parseLegacyErrors(row: Record<string, unknown>): string[] {
   return normalizeStringArray(parseJson<string[]>(row.recent_errors, []));
 }
 
+function parseStoredSectionIds(value: unknown): string[] {
+  return normalizeStringArray(parseJson<string[]>(value, []));
+}
+
 function normalizeRecentMetricEvents(value: unknown): DiagnosticMetricEvent[] {
   if (!Array.isArray(value)) {
     return [];
@@ -1456,6 +1462,8 @@ export function mapFeedbackRowToApiItem(
   const recentMetricEvents = normalizedDiagnostics?.hasMetricEvents
     ? normalizedDiagnostics.recentMetricEvents
     : parseLegacyRecentMetricEvents(rawRow);
+  const includedDiagnosticSections = parseStoredSectionIds(rawRow.included_diagnostic_sections);
+  const excludedDiagnosticSections = parseStoredSectionIds(rawRow.excluded_diagnostic_sections);
   const externalSource = resolveExternalSource(rawRow.external_source, tags, appVersion, buildNumber);
   const externalIdRaw = toStringValue(rawRow.external_id).trim();
   const externalUrlRaw = toStringValue(rawRow.external_url).trim();
@@ -1506,6 +1514,8 @@ export function mapFeedbackRowToApiItem(
     emergencyCrashReports: normalizedDiagnostics?.hasCrashReports
       ? normalizedDiagnostics.emergencyCrashReports
       : parseLegacyCrashReports(rawRow),
+    includedDiagnosticSections,
+    excludedDiagnosticSections,
     hasScreenshot: toBoolean(rawRow.has_screenshot),
     externalSource,
     externalId: externalIdRaw.length > 0 ? externalIdRaw : null,

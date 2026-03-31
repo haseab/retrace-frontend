@@ -105,6 +105,8 @@ export interface FeedbackItem {
   performanceInfo: DiagnosticPerformanceInfo;
   recentMetricEvents: DiagnosticMetricEvent[];
   emergencyCrashReports: string[];
+  includedDiagnosticSections: string[];
+  excludedDiagnosticSections: string[];
   hasScreenshot: boolean;
   externalSource: FeedbackSource;
   externalId: string | null;
@@ -189,6 +191,8 @@ export function hydrateFeedbackSummary(summary: FeedbackSummaryItem): FeedbackIt
     },
     recentMetricEvents: [],
     emergencyCrashReports: [],
+    includedDiagnosticSections: [],
+    excludedDiagnosticSections: [],
   };
 }
 

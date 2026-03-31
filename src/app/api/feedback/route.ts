@@ -3,12 +3,7 @@ import { db, initDatabase } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
 import {
-  DEFAULT_ACCESSIBILITY_INFO,
-  DEFAULT_DISPLAY_INFO,
-  DEFAULT_PERFORMANCE_INFO,
-  DEFAULT_PROCESS_INFO,
   mapFeedbackSummaryRowToApiItem,
-  stringifyJson,
   upsertFeedbackDiagnostics,
 } from "@/lib/feedback-diagnostics";
 import type {
@@ -28,20 +23,20 @@ interface FeedbackSubmission {
   externalId?: string;
   externalUrl?: string;
   diagnostics: {
-    appVersion: string;
-    buildNumber: string;
-    macOSVersion: string;
-    deviceModel: string;
-    totalDiskSpace: string;
-    freeDiskSpace: string;
-    databaseStats: {
+    appVersion?: string;
+    buildNumber?: string;
+    macOSVersion?: string;
+    deviceModel?: string;
+    totalDiskSpace?: string;
+    freeDiskSpace?: string;
+    databaseStats?: {
       sessionCount: number;
       frameCount: number;
       segmentCount: number;
       databaseSizeMB: number;
     };
     settingsSnapshot?: Record<string, unknown>;
-    recentErrors: string[];
+    recentErrors?: string[];
     recentLogs?: string[];
     timestamp?: string;
     displayInfo?: FeedbackDisplayInfo;
@@ -50,6 +45,8 @@ interface FeedbackSubmission {
     performanceInfo?: FeedbackPerformanceInfo;
     recentMetricEvents?: DiagnosticMetricEvent[];
     emergencyCrashReports?: string[];
+    includedSections?: string[];
+    excludedSections?: string[];
   };
   includeScreenshot: boolean;
   screenshotData?: string; // Base64 encoded PNG
@@ -74,6 +71,8 @@ const MAX_FEEDBACK_RECENT_METRIC_EVENTS = getPositiveIntegerFromEnv("MAX_FEEDBAC
 const MAX_FEEDBACK_RECENT_METRIC_EVENT_DETAIL_KEYS = 12;
 const MAX_FEEDBACK_CRASH_REPORTS = getPositiveIntegerFromEnv("MAX_FEEDBACK_CRASH_REPORTS", 20);
 const MAX_FEEDBACK_CRASH_REPORT_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_CRASH_REPORT_CHARS", 50_000);
+const MAX_FEEDBACK_DIAGNOSTIC_SECTION_IDS = getPositiveIntegerFromEnv("MAX_FEEDBACK_DIAGNOSTIC_SECTION_IDS", 64);
+const MAX_FEEDBACK_DIAGNOSTIC_SECTION_ID_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_DIAGNOSTIC_SECTION_ID_CHARS", 96);
 const MAX_FEEDBACK_SCREENSHOT_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_SCREENSHOT_BYTES", 5 * 1024 * 1024);
 const FEEDBACK_RATE_LIMIT_WINDOW_MS = getPositiveIntegerFromEnv("FEEDBACK_RATE_LIMIT_WINDOW_MS", 60_000);
 const FEEDBACK_RATE_LIMIT_MAX_REQUESTS = getPositiveIntegerFromEnv("FEEDBACK_RATE_LIMIT_MAX_REQUESTS", 30);
@@ -152,29 +151,32 @@ function getStringLengthOrZero(value: unknown): number {
   return typeof value === "string" ? value.length : 0;
 }
 
-function getDiagnosticsString(
-  diagnostics: Record<string, unknown>,
-  key: string,
+function normalizeOptionalBoundedString(
+  value: unknown,
+  fieldName: string,
   maxChars: number
-): { ok: true; value: string } | { ok: false; status: 400 | 413; error: string } {
-  const raw = diagnostics[key];
-  if (typeof raw !== "string") {
+): { ok: true; value: string | undefined } | { ok: false; status: 400 | 413; error: string } {
+  if (value === undefined) {
+    return { ok: true, value: undefined };
+  }
+
+  if (typeof value !== "string") {
     return {
       ok: false,
       status: 400,
-      error: `Invalid diagnostics.${key}; expected string.`,
+      error: `Invalid ${fieldName}; expected string.`,
     };
   }
 
-  if (raw.length > maxChars) {
+  if (value.length > maxChars) {
     return {
       ok: false,
       status: 413,
-      error: `diagnostics.${key} exceeds max length of ${maxChars} characters.`,
+      error: `${fieldName} exceeds max length of ${maxChars} characters.`,
     };
   }
 
-  return { ok: true, value: raw };
+  return { ok: true, value };
 }
 
 function normalizeRequiredBoundedString(
@@ -211,8 +213,18 @@ function normalizeStringArray(
   value: unknown,
   fieldName: string,
   maxItems: number,
-  maxChars: number
-): { ok: true; value: string[] } | { ok: false; status: 400 | 413; error: string } {
+  maxChars: number,
+  options: {
+    optional?: boolean;
+    trimEntries?: boolean;
+    dedupe?: boolean;
+    skipEmpty?: boolean;
+  } = {}
+): { ok: true; value: string[] | undefined } | { ok: false; status: 400 | 413; error: string } {
+  if (value === undefined && options.optional) {
+    return { ok: true, value: undefined };
+  }
+
   if (!Array.isArray(value)) {
     return {
       ok: false,
@@ -230,6 +242,7 @@ function normalizeStringArray(
   }
 
   const normalized: string[] = [];
+  const seen = options.dedupe ? new Set<string>() : null;
   for (let index = 0; index < value.length; index += 1) {
     const entry = value[index];
     if (typeof entry !== "string") {
@@ -240,7 +253,12 @@ function normalizeStringArray(
       };
     }
 
-    if (entry.length > maxChars) {
+    const normalizedEntry = options.trimEntries ? entry.trim() : entry;
+    if (options.skipEmpty && normalizedEntry.length === 0) {
+      continue;
+    }
+
+    if (normalizedEntry.length > maxChars) {
       return {
         ok: false,
         status: 413,
@@ -248,10 +266,29 @@ function normalizeStringArray(
       };
     }
 
-    normalized.push(entry);
+    if (seen) {
+      if (seen.has(normalizedEntry)) {
+        continue;
+      }
+      seen.add(normalizedEntry);
+    }
+
+    normalized.push(normalizedEntry);
   }
 
   return { ok: true, value: normalized };
+}
+
+function serializeOptionalJson(value: unknown): string | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeStringRecord(
@@ -733,70 +770,95 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
   }
 
   const diagnostics = body.diagnostics as Record<string, unknown>;
-  const appVersionResult = getDiagnosticsString(diagnostics, "appVersion", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  const appVersionResult = normalizeOptionalBoundedString(
+    diagnostics.appVersion,
+    "diagnostics.appVersion",
+    MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+  );
   if (!appVersionResult.ok) {
     return appVersionResult;
   }
-  const buildNumberResult = getDiagnosticsString(diagnostics, "buildNumber", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  const buildNumberResult = normalizeOptionalBoundedString(
+    diagnostics.buildNumber,
+    "diagnostics.buildNumber",
+    MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+  );
   if (!buildNumberResult.ok) {
     return buildNumberResult;
   }
-  const macOsResult = getDiagnosticsString(diagnostics, "macOSVersion", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  const macOsResult = normalizeOptionalBoundedString(
+    diagnostics.macOSVersion,
+    "diagnostics.macOSVersion",
+    MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+  );
   if (!macOsResult.ok) {
     return macOsResult;
   }
-  const deviceModelResult = getDiagnosticsString(diagnostics, "deviceModel", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  const deviceModelResult = normalizeOptionalBoundedString(
+    diagnostics.deviceModel,
+    "diagnostics.deviceModel",
+    MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+  );
   if (!deviceModelResult.ok) {
     return deviceModelResult;
   }
-  const totalDiskSpaceResult = getDiagnosticsString(diagnostics, "totalDiskSpace", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  const totalDiskSpaceResult = normalizeOptionalBoundedString(
+    diagnostics.totalDiskSpace,
+    "diagnostics.totalDiskSpace",
+    MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+  );
   if (!totalDiskSpaceResult.ok) {
     return totalDiskSpaceResult;
   }
-  const freeDiskSpaceResult = getDiagnosticsString(diagnostics, "freeDiskSpace", MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS);
+  const freeDiskSpaceResult = normalizeOptionalBoundedString(
+    diagnostics.freeDiskSpace,
+    "diagnostics.freeDiskSpace",
+    MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS
+  );
   if (!freeDiskSpaceResult.ok) {
     return freeDiskSpaceResult;
   }
 
-  if (!isRecord(diagnostics.databaseStats)) {
+  if (diagnostics.databaseStats !== undefined && !isRecord(diagnostics.databaseStats)) {
     return {
       ok: false,
       status: 400,
       error: "Invalid diagnostics.databaseStats; expected object.",
     };
   }
-  const databaseStats = diagnostics.databaseStats as Record<string, unknown>;
+  const databaseStats = isRecord(diagnostics.databaseStats)
+    ? diagnostics.databaseStats as Record<string, unknown>
+    : undefined;
 
   const recentErrorsResult = normalizeStringArray(
     diagnostics.recentErrors,
     "diagnostics.recentErrors",
     MAX_FEEDBACK_RECENT_ERRORS,
-    MAX_FEEDBACK_RECENT_ERROR_CHARS
+    MAX_FEEDBACK_RECENT_ERROR_CHARS,
+    { optional: true }
   );
   if (!recentErrorsResult.ok) {
     return recentErrorsResult;
   }
 
-  const recentLogsResult = diagnostics.recentLogs === undefined
-    ? { ok: true as const, value: [] as string[] }
-    : normalizeStringArray(
-        diagnostics.recentLogs,
-        "diagnostics.recentLogs",
-        MAX_FEEDBACK_RECENT_LOGS,
-        MAX_FEEDBACK_RECENT_LOG_CHARS
-      );
+  const recentLogsResult = normalizeStringArray(
+    diagnostics.recentLogs,
+    "diagnostics.recentLogs",
+    MAX_FEEDBACK_RECENT_LOGS,
+    MAX_FEEDBACK_RECENT_LOG_CHARS,
+    { optional: true }
+  );
   if (!recentLogsResult.ok) {
     return recentLogsResult;
   }
 
-  const crashReportsResult = diagnostics.emergencyCrashReports === undefined
-    ? { ok: true as const, value: [] as string[] }
-    : normalizeStringArray(
-        diagnostics.emergencyCrashReports,
-        "diagnostics.emergencyCrashReports",
-        MAX_FEEDBACK_CRASH_REPORTS,
-        MAX_FEEDBACK_CRASH_REPORT_CHARS
-      );
+  const crashReportsResult = normalizeStringArray(
+    diagnostics.emergencyCrashReports,
+    "diagnostics.emergencyCrashReports",
+    MAX_FEEDBACK_CRASH_REPORTS,
+    MAX_FEEDBACK_CRASH_REPORT_CHARS,
+    { optional: true }
+  );
   if (!crashReportsResult.ok) {
     return crashReportsResult;
   }
@@ -804,7 +866,7 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
   const recentMetricEventsResult = diagnostics.recentMetricEvents === undefined
     ? {
         ok: true as const,
-        value: [] as DiagnosticMetricEvent[],
+        value: undefined,
       }
     : normalizeRecentMetricEvents(
         diagnostics.recentMetricEvents,
@@ -812,6 +874,38 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
       );
   if (!recentMetricEventsResult.ok) {
     return recentMetricEventsResult;
+  }
+
+  const includedSectionsResult = normalizeStringArray(
+    diagnostics.includedSections,
+    "diagnostics.includedSections",
+    MAX_FEEDBACK_DIAGNOSTIC_SECTION_IDS,
+    MAX_FEEDBACK_DIAGNOSTIC_SECTION_ID_CHARS,
+    {
+      optional: true,
+      trimEntries: true,
+      dedupe: true,
+      skipEmpty: true,
+    }
+  );
+  if (!includedSectionsResult.ok) {
+    return includedSectionsResult;
+  }
+
+  const excludedSectionsResult = normalizeStringArray(
+    diagnostics.excludedSections,
+    "diagnostics.excludedSections",
+    MAX_FEEDBACK_DIAGNOSTIC_SECTION_IDS,
+    MAX_FEEDBACK_DIAGNOSTIC_SECTION_ID_CHARS,
+    {
+      optional: true,
+      trimEntries: true,
+      dedupe: true,
+      skipEmpty: true,
+    }
+  );
+  if (!excludedSectionsResult.ok) {
+    return excludedSectionsResult;
   }
 
   const settingsSnapshot = diagnostics.settingsSnapshot;
@@ -883,6 +977,11 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
     };
   }
 
+  const normalizedIncludedSections = includedSectionsResult.value;
+  const normalizedExcludedSections = excludedSectionsResult.value === undefined
+    ? undefined
+    : excludedSectionsResult.value.filter((sectionId) => !normalizedIncludedSections?.includes(sectionId));
+
   const normalizedBody: FeedbackSubmission = {
     type: body.type,
     description: body.description,
@@ -894,12 +993,14 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
       deviceModel: deviceModelResult.value,
       totalDiskSpace: totalDiskSpaceResult.value,
       freeDiskSpace: freeDiskSpaceResult.value,
-      databaseStats: {
-        sessionCount: parseNumber(databaseStats.sessionCount),
-        frameCount: parseNumber(databaseStats.frameCount),
-        segmentCount: parseNumber(databaseStats.segmentCount),
-        databaseSizeMB: parseNumber(databaseStats.databaseSizeMB),
-      },
+      databaseStats: databaseStats
+        ? {
+            sessionCount: parseNumber(databaseStats.sessionCount),
+            frameCount: parseNumber(databaseStats.frameCount),
+            segmentCount: parseNumber(databaseStats.segmentCount),
+            databaseSizeMB: parseNumber(databaseStats.databaseSizeMB),
+          }
+        : undefined,
       recentErrors: recentErrorsResult.value,
       recentLogs: recentLogsResult.value,
       emergencyCrashReports: crashReportsResult.value,
@@ -910,6 +1011,8 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
       accessibilityInfo: diagnostics.accessibilityInfo as FeedbackAccessibilityInfo | undefined,
       performanceInfo: diagnostics.performanceInfo as FeedbackPerformanceInfo | undefined,
       recentMetricEvents: recentMetricEventsResult.value,
+      includedSections: normalizedIncludedSections,
+      excludedSections: normalizedExcludedSections,
     },
     email: typeof body.email === "string" ? body.email : undefined,
     externalSource: typeof body.externalSource === "string" ? body.externalSource : undefined,
@@ -1055,8 +1158,8 @@ export async function POST(request: NextRequest) {
     const displayCount = getDisplayCount(body.diagnostics.displayInfo);
     const externalSource = normalizeExternalSource(
       body.externalSource,
-      body.diagnostics.appVersion,
-      body.diagnostics.buildNumber
+      body.diagnostics.appVersion ?? "",
+      body.diagnostics.buildNumber ?? ""
     );
     const externalId = normalizeOptionalText(body.externalId);
     const externalUrl = normalizeOptionalText(body.externalUrl);
@@ -1074,8 +1177,9 @@ export async function POST(request: NextRequest) {
           recent_logs, diagnostics_timestamp, settings_snapshot, display_info,
           process_info, accessibility_info, performance_info, emergency_crash_reports,
           display_count, has_screenshot, screenshot_data, external_source, external_id, external_url,
+          included_diagnostic_sections, excluded_diagnostic_sections,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
       `,
       args: [
         body.type,
@@ -1085,31 +1189,33 @@ export async function POST(request: NextRequest) {
         "medium",
         "",
         0,
-        body.diagnostics.appVersion,
-        body.diagnostics.buildNumber,
-        body.diagnostics.macOSVersion,
-        body.diagnostics.deviceModel,
-        body.diagnostics.totalDiskSpace,
-        body.diagnostics.freeDiskSpace,
-        body.diagnostics.databaseStats?.sessionCount ?? 0,
-        body.diagnostics.databaseStats?.frameCount ?? 0,
-        body.diagnostics.databaseStats?.segmentCount ?? 0,
-        body.diagnostics.databaseStats?.databaseSizeMB ?? 0,
-        stringifyJson(body.diagnostics.recentErrors, []),
-        stringifyJson(body.diagnostics.recentLogs || [], []),
+        body.diagnostics.appVersion ?? null,
+        body.diagnostics.buildNumber ?? null,
+        body.diagnostics.macOSVersion ?? null,
+        body.diagnostics.deviceModel ?? null,
+        body.diagnostics.totalDiskSpace ?? null,
+        body.diagnostics.freeDiskSpace ?? null,
+        body.diagnostics.databaseStats?.sessionCount ?? null,
+        body.diagnostics.databaseStats?.frameCount ?? null,
+        body.diagnostics.databaseStats?.segmentCount ?? null,
+        body.diagnostics.databaseStats?.databaseSizeMB ?? null,
+        serializeOptionalJson(body.diagnostics.recentErrors),
+        serializeOptionalJson(body.diagnostics.recentLogs),
         diagnosticsTimestamp,
-        stringifyJson(body.diagnostics.settingsSnapshot || {}, {}),
-        stringifyJson(body.diagnostics.displayInfo || DEFAULT_DISPLAY_INFO, DEFAULT_DISPLAY_INFO),
-        stringifyJson(body.diagnostics.processInfo || DEFAULT_PROCESS_INFO, DEFAULT_PROCESS_INFO),
-        stringifyJson(body.diagnostics.accessibilityInfo || DEFAULT_ACCESSIBILITY_INFO, DEFAULT_ACCESSIBILITY_INFO),
-        stringifyJson(body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO, DEFAULT_PERFORMANCE_INFO),
-        stringifyJson(body.diagnostics.emergencyCrashReports || [], []),
+        serializeOptionalJson(body.diagnostics.settingsSnapshot),
+        serializeOptionalJson(body.diagnostics.displayInfo),
+        serializeOptionalJson(body.diagnostics.processInfo),
+        serializeOptionalJson(body.diagnostics.accessibilityInfo),
+        serializeOptionalJson(body.diagnostics.performanceInfo),
+        serializeOptionalJson(body.diagnostics.emergencyCrashReports),
         displayCount,
         hasScreenshot ? 1 : 0,
         hasScreenshot ? screenshotBuffer : null,
         externalSource,
         externalId,
         externalUrl,
+        serializeOptionalJson(body.diagnostics.includedSections),
+        serializeOptionalJson(body.diagnostics.excludedSections),
       ],
     });
 
@@ -1128,17 +1234,27 @@ export async function POST(request: NextRequest) {
 
     const diagnosticsWriteStartedAt = Date.now();
     await upsertFeedbackDiagnostics(db, feedbackId, {
-      settingsSnapshot: body.diagnostics.settingsSnapshot || {},
-      recentErrors: body.diagnostics.recentErrors || [],
-      recentLogs: body.diagnostics.recentLogs || [],
-      displayInfo: body.diagnostics.displayInfo || DEFAULT_DISPLAY_INFO,
-      processInfo: body.diagnostics.processInfo || DEFAULT_PROCESS_INFO,
-      accessibilityInfo: body.diagnostics.accessibilityInfo || DEFAULT_ACCESSIBILITY_INFO,
-      performanceInfo: body.diagnostics.performanceInfo || DEFAULT_PERFORMANCE_INFO,
-      emergencyCrashReports: body.diagnostics.emergencyCrashReports || [],
-      recentMetricEvents: body.diagnostics.recentMetricEvents || [],
+      settingsSnapshot: body.diagnostics.settingsSnapshot,
+      recentErrors: body.diagnostics.recentErrors,
+      recentLogs: body.diagnostics.recentLogs,
+      displayInfo: body.diagnostics.displayInfo,
+      processInfo: body.diagnostics.processInfo,
+      accessibilityInfo: body.diagnostics.accessibilityInfo,
+      performanceInfo: body.diagnostics.performanceInfo,
+      emergencyCrashReports: body.diagnostics.emergencyCrashReports,
+      recentMetricEvents: body.diagnostics.recentMetricEvents,
     }, {
       traceId,
+      writeSettings: body.diagnostics.settingsSnapshot !== undefined,
+      writeLogEntries:
+        body.diagnostics.recentErrors !== undefined ||
+        body.diagnostics.recentLogs !== undefined,
+      writeDisplays: body.diagnostics.displayInfo !== undefined,
+      writeProcess: body.diagnostics.processInfo !== undefined,
+      writeAccessibility: body.diagnostics.accessibilityInfo !== undefined,
+      writePerformance: body.diagnostics.performanceInfo !== undefined,
+      writeCrashReports: body.diagnostics.emergencyCrashReports !== undefined,
+      writeMetricEvents: body.diagnostics.recentMetricEvents !== undefined,
       logTimings: true,
     });
     logger.info("diagnostics_persisted", {
