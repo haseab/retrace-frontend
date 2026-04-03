@@ -10,6 +10,57 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.8.7</title>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>0.8.7</sparkle:shortVersionString>
+            <pubDate>Fri, 03 Apr 2026 21:59:06 +0000</pubDate>
+            <description><![CDATA[
+<h2>Retrace v0.8.7</h2>
+<p>This release fixes the recently reported issues within the app, adds faster timeline/search behavior, a new quick comment workflow, and richer diagnostics.</p>
+
+<h3>Capture & Timeline</h3>
+<ul>
+  <li><strong>Capture on mouse click:</strong> Optionally capture shortly after left-clicks so frames better reflect the post-click UI state.</li>
+  <li><strong>Faster visual feedback:</strong> Timeline can now surface immediate frame captures before encoded video is ready, reducing the feeling of lag after new captures.</li>
+  <li><strong>More reliable capture timing:</strong> Updated window/mouse capture delay improves window fade-in capture, and Retrace now avoids recording in screensaver mode. And the timeline naturally exits on another window activation through a keyboard shortcut.</li>
+</ul>
+
+<h3>Comments, Tags & Navigation</h3>
+<ul>
+  <li><strong>Global quick comments:</strong> Add comments and tags to what you are seeing on your live screen from a dedicated quick-comment workflow. Default shortcut is Cmd+Shift+C.</li>
+  <li><strong>Better date jump parsing:</strong> "Jump to" now handles more natural language, shorthand relative dates, and time-only inputs more accurately.</li>
+  <li><strong>Smoother keyboard workflows:</strong> Improved search focus behavior, timeline launch reliability, date-range shortcuts, and recovery hints when the timeline has to fall back to a newer cached position.</li>
+</ul>
+
+<h3>Dashboard & System Monitor</h3>
+<ul>
+  <li><strong>More visibility into storage and activity:</strong> Dashboard now shows total recorded hours more clearly and adds a daily storage breakdown tooltip for database vs video usage.</li>
+  <li><strong>Expanded system monitor:</strong> Added an encoding-status monitoring with backlog history and ETA.</li>
+  <li><strong>Flexible app presence:</strong> Retrace can now run with a Dock icon or as a pure menu bar app, with cleaner behavior when toggling between the two.</li>
+</ul>
+
+<h3>Feedback & Diagnostics</h3>
+<ul>
+  <li><strong>Selectable diagnostics:</strong> Feedback reports now let you preview and choose which diagnostic sections to include before sending.</li>
+  <li><strong>Recent activity support:</strong> Feedback exports now include sanitized recent actions to make debugging easier.</li>
+</ul>
+
+<h3>Performance & Reliability</h3>
+<ul>
+  <li><strong>Faster search and timeline reads:</strong> Read-heavy paths now use pooled read-only database access, improving responsiveness under load.</li>
+  <li><strong>Lower memory pressure:</strong> Reduced cache pressure across timeline, storage, OCR, and UI metadata/icon loading.</li>
+  <li><strong>Crash-recovery hardening:</strong> Added a dedicated crash-recovery helper, safer relaunch handling, and startup FTS5 verification for more reliable launches after failures.</li>
+  <li><strong>Quality fixes throughout:</strong> Improved OCR fidelity, faster thumbnails and filter loading, better in-page URL copying, and many timeline/search/UI correctness fixes.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://cdn.retrace.to/Retrace-v0.8.7.dmg"
+                sparkle:edSignature="e2OxsekWsVbKEYEkpWupNCHNfqXk0dE382GL5aeg/mYyjpMIA+Dzd+J23aVUsEbS7rM8gwpHXW/E3CBne1MCBA=="
+                length="20387145"
+                type="application/octet-stream"/>
+        </item>
+
+        <item>
             <title>Version 0.8.5</title>
             <sparkle:version>10</sparkle:version>
             <sparkle:shortVersionString>0.8.5</sparkle:shortVersionString>
