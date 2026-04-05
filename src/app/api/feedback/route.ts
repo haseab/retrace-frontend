@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { gunzipSync } from "node:zlib";
 import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
@@ -63,7 +64,7 @@ const MAX_FEEDBACK_DIAGNOSTICS_TEXT_CHARS = getPositiveIntegerFromEnv("MAX_FEEDB
 const MAX_FEEDBACK_SETTINGS_SNAPSHOT_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_SETTINGS_SNAPSHOT_BYTES", 128 * 1024);
 const MAX_FEEDBACK_RECENT_ERRORS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_ERRORS", 300);
 const MAX_FEEDBACK_RECENT_ERROR_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_ERROR_CHARS", 1_500);
-const MAX_FEEDBACK_RECENT_LOGS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOGS", 600);
+const MAX_FEEDBACK_RECENT_LOGS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOGS", 10_000);
 const MAX_FEEDBACK_RECENT_LOG_CHARS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_LOG_CHARS", 2_000);
 const MAX_FEEDBACK_RECENT_METRIC_EVENTS = getPositiveIntegerFromEnv("MAX_FEEDBACK_RECENT_METRIC_EVENTS", 200);
 const MAX_FEEDBACK_RECENT_METRIC_EVENT_DETAIL_KEYS = 12;
@@ -105,6 +106,26 @@ interface FeedbackBodyReadFailure {
 }
 
 type FeedbackBodyReadResult = FeedbackBodyReadSuccess | FeedbackBodyReadFailure;
+
+function decodeFeedbackRequestBody(
+  bytes: Uint8Array,
+  contentEncodingHeader: string | null
+): Uint8Array {
+  const encodings = (contentEncodingHeader ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0 && value !== "identity");
+
+  if (encodings.length === 0) {
+    return bytes;
+  }
+
+  if (encodings.length === 1 && encodings[0] === "gzip") {
+    return gunzipSync(Buffer.from(bytes));
+  }
+
+  throw new Error(`Unsupported Content-Encoding: ${contentEncodingHeader}`);
+}
 
 interface FeedbackPayloadValidationSuccess {
   ok: true;
@@ -647,9 +668,23 @@ async function readRequestJsonWithLimit(
     offset += chunk.byteLength;
   }
 
+  let decodedBody: Uint8Array;
+  try {
+    decodedBody = decodeFeedbackRequestBody(
+      combined,
+      request.headers.get("content-encoding")
+    );
+  } catch {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid compressed request body.",
+    };
+  }
+
   let parsedBody: unknown;
   try {
-    parsedBody = JSON.parse(new TextDecoder().decode(combined));
+    parsedBody = JSON.parse(new TextDecoder().decode(decodedBody));
   } catch {
     return {
       ok: false,
