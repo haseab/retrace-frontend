@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { getDownloadAnalyticsPayload } from "@/lib/download-analytics";
+import { getLinkAnalyticsPayload } from "@/lib/link-analytics";
 import { fetchCloudflareR2VersionHistory } from "@/lib/cloudflare-r2-analytics";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
 
@@ -15,14 +16,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [payload, cloudflareR2History] = await Promise.all([
+    const [payload, linkPayload, cloudflareR2History] = await Promise.all([
       getDownloadAnalyticsPayload(),
+      getLinkAnalyticsPayload(),
       fetchCloudflareR2VersionHistory(),
     ]);
 
     logger.success({
       status: 200,
       totalDownloads: payload.totalDownloads,
+      totalLinkClicks: linkPayload.totalLinkClicks,
       r2HistoryPoints: Array.isArray(cloudflareR2History.history)
         ? cloudflareR2History.history.length
         : 0,
@@ -31,6 +34,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ...payload,
+      ...linkPayload,
       r2VersionHistory: cloudflareR2History.history,
       r2VersionHistoryError: cloudflareR2History.error,
     });

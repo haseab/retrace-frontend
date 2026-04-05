@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, initDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import type { FeedbackPriority, FeedbackStatus, FeedbackType } from "@/lib/types/feedback";
 import { extractLeadingBracketTokens, stripLeadingBracketPrefixes } from "@/lib/feedback-display";
@@ -97,7 +97,6 @@ const EMPTY_PERFORMANCE_INFO = JSON.stringify({
   batteryLevel: null,
 });
 
-let initialized = false;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -998,12 +997,6 @@ async function runSync(request: NextRequest, logger: ApiRouteLogger) {
   if (authError) {
     logger.warn("auth_failed", { status: authError.status });
     return authError;
-  }
-
-  if (!initialized) {
-    await initDatabase();
-    initialized = true;
-    logger.info("database_initialized");
   }
 
   const startedAt = Date.now();

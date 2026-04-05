@@ -5,9 +5,9 @@ import { motion } from "framer-motion";
 import { Download, TrendingUp, Users, Package } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { authFetch } from "@/lib/client-api";
-import { DownloadStats } from "@/lib/types/feedback";
+import { SiteAnalytics } from "@/lib/types/feedback";
 
-const EMPTY_STATS: DownloadStats = {
+const EMPTY_STATS: SiteAnalytics = {
   totalDownloads: 0,
   byOs: [],
   bySource: [],
@@ -17,7 +17,7 @@ const EMPTY_STATS: DownloadStats = {
 };
 
 export default function StatsPage() {
-  const [stats, setStats] = useState<DownloadStats>(EMPTY_STATS);
+  const [stats, setStats] = useState<SiteAnalytics>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -239,10 +239,12 @@ export default function StatsPage() {
           >
             <h3 className="font-semibold">Privacy Note</h3>
             <p className="text-sm text-muted-foreground">
-              These statistics are collected anonymously. We only track download
-              counts, platform types, and version numbers. No IP addresses,
-              device identifiers, or personal information is collected or
-              stored.
+              This page shows aggregated download metrics. Separately, the
+              website retains limited request metadata for download and public
+              redirect analytics, including IP address, coarse location,
+              request host, referrer, user agent, and an allowlisted set of
+              campaign parameters when present. Raw request metadata is not
+              shown on this page.
             </p>
           </motion.div>
         </div>

@@ -20,7 +20,10 @@ interface WriteStructuredLogOptions {
 }
 
 const ENABLE_ADMIN_API_ROUTE_LOGS = process.env.ENABLE_ADMIN_API_ROUTE_LOGS === "true";
-const ALWAYS_ENABLED_ROUTE_PATTERNS = [/^feedback\.POST$/, /^feedback\.sync\./];
+const ALWAYS_ENABLED_ROUTE_PATTERNS = [
+  /^feedback\.POST$/,
+  /^feedback\.sync\./,
+];
 
 function toStringValue(value: unknown): string | null {
   if (typeof value === "string") {

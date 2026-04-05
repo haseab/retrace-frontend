@@ -269,13 +269,34 @@ export interface DownloadItem {
   created_at: string;
 }
 
-export interface DownloadStats {
+export interface LinkClickItem {
+  id: number;
+  slug: string;
+  destination: string | null;
+  referrer: string | null;
+  user_agent: string | null;
+  ip: string | null;
+  country: string | null;
+  city: string | null;
+  region: string | null;
+  request_host: string | null;
+  accept_language: string | null;
+  query_string: string | null;
+  created_at: string;
+}
+
+export interface SiteAnalytics {
   totalDownloads: number;
   byOs: { os: string; count: number }[];
   bySource: { source: string; count: number }[];
   recent: DownloadItem[];
   hourlyDownloads?: DownloadSeriesPoint[];
   dailyDownloads?: DownloadSeriesPoint[];
+  totalLinkClicks?: number;
+  byLinkSlug?: { slug: string; count: number }[];
+  recentLinkClicks?: LinkClickItem[];
+  hourlyLinkClicks?: DownloadSeriesPoint[];
+  dailyLinkClicks?: DownloadSeriesPoint[];
   r2VersionHistory?: R2VersionHistory | null;
   r2VersionHistoryError?: string | null;
 }

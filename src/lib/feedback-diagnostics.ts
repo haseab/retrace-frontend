@@ -1634,6 +1634,7 @@ export async function hasLegacyDiagnosticsSourceData(database: Client): Promise<
       COALESCE(TRIM(process_info), '') NOT IN ('', '{}', 'null') OR
       COALESCE(TRIM(accessibility_info), '') NOT IN ('', '{}', 'null') OR
       COALESCE(TRIM(performance_info), '') NOT IN ('', '{}', 'null') OR
+      COALESCE(TRIM(recent_metric_events), '') NOT IN ('', '[]', 'null') OR
       COALESCE(TRIM(emergency_crash_reports), '') NOT IN ('', '[]', 'null')
     LIMIT 1
   `);
@@ -1651,6 +1652,7 @@ export async function backfillLegacyDiagnostics(database: Client): Promise<void>
       accessibility_info,
       performance_info,
       emergency_crash_reports,
+      recent_metric_events,
       recent_errors,
       recent_logs
     FROM feedback

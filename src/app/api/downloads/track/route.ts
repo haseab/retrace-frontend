@@ -1,11 +1,9 @@
-import { db, initDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { getDownloadAnalyticsPayload } from "@/lib/download-analytics";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
 
-// Ensure table exists on first request
-let dbInitialized = false;
 const DOWNLOAD_TRACK_WINDOW_MS = 5 * 60 * 1000;
 const DOWNLOAD_TRACK_MAX_REQUESTS = 40;
 const DOWNLOAD_TRACK_DEDUP_WINDOW_MS = 30 * 1000;
@@ -190,12 +188,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Initialize database on first request
-    if (!dbInitialized) {
-      await initDatabase();
-      dbInitialized = true;
-    }
-
     const {
       version,
       source,

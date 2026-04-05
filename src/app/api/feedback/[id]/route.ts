@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, initDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import {
   getNormalizedDiagnosticsByFeedbackIds,
@@ -7,7 +7,6 @@ import {
 } from "@/lib/feedback-diagnostics";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
 
-let initialized = false;
 const FEEDBACK_DETAIL_COLUMNS_WITHOUT_RECENT_LOGS = [
   "id",
   "type",
@@ -79,11 +78,6 @@ export async function GET(
   }
 
   try {
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const includeRecentLogs = parseBooleanQuery(searchParams.get("includeRecentLogs"));
@@ -150,11 +144,6 @@ export async function PATCH(
   }
 
   try {
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { id } = await params;
     const body = await request.json();
     const { status, priority, notes, tags, isRead } = body;
@@ -300,11 +289,6 @@ export async function DELETE(
   }
 
   try {
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { id } = await params;
 
     // Check if item exists

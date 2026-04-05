@@ -4,7 +4,7 @@ import { Database, Eye, Lock, Mic, MonitorX } from "lucide-react";
 export const metadata = {
   title: "Privacy Policy - Retrace",
   description:
-    "Retrace privacy policy. We collect ZERO personal data. Everything stays on your Mac.",
+    "Retrace privacy policy. App data stays on your Mac, while the website collects limited request metadata for downloads and public redirects.",
 };
 
 export default function PrivacyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         <div className="mx-auto max-w-4xl space-y-16">
           <SectionHeader
             title="Privacy Policy"
-            subtitle="Last updated: December 2025"
+            subtitle="Last updated: April 5, 2026"
             centered
           />
 
@@ -337,7 +337,7 @@ export default function PrivacyPage() {
                 <li>❌ No tracking pixels or third-party scripts</li>
                 <li>❌ No crash reports (unless you manually share logs)</li>
                 <li>❌ No usage statistics</li>
-                <li>❌ No IP addresses or device identifiers</li>
+                <li>❌ No IP addresses or device identifiers from the application itself</li>
               </ul>
             </section>
 
@@ -392,15 +392,22 @@ export default function PrivacyPage() {
             <section className="mt-12 space-y-4">
               <h2 className="text-3xl font-bold">Website Analytics</h2>
               <p>
-                This website uses privacy-respecting analytics to understand how
-                many people visit our site. We use{" "}
-                <strong>anonymous download counters</strong> that track:
+                The website and public <code>/l/*</code> redirects collect
+                limited first-party request logs for analytics and abuse
+                prevention. For download events and redirect clicks, we may
+                store:
               </p>
               <ul className="space-y-2">
-                <li>Number of downloads (no personal information)</li>
-                <li>Download source (website, Homebrew, GitHub)</li>
-                <li>Platform version (Intel vs Apple Silicon)</li>
+                <li>Requested path and timestamp</li>
+                <li>IP address, request host, referrer, and user agent</li>
+                <li>Country, city, region, and language from request metadata</li>
+                <li>Only an allowlisted set of campaign parameters, if present</li>
               </ul>
+              <p>
+                We do not run third-party analytics scripts on the site, and we
+                drop non-allowlisted query parameters before redirecting to
+                external destinations.
+              </p>
             </section>
 
             {/* Open Source Verification */}

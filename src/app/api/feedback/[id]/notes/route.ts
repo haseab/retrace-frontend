@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, initDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
-
-let initialized = false;
 
 // GET - Fetch all notes for a feedback item
 export async function GET(
@@ -20,11 +18,6 @@ export async function GET(
   }
 
   try {
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { id } = await params;
 
     const result = await db.execute({
@@ -71,11 +64,6 @@ export async function POST(
   }
 
   try {
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { id } = await params;
     const body = await request.json();
     const { author, content } = body;

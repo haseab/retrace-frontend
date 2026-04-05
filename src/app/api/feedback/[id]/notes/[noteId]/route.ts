@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, initDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
-
-let initialized = false;
 
 // DELETE - Remove a note
 export async function DELETE(
@@ -20,11 +18,6 @@ export async function DELETE(
   }
 
   try {
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { id, noteId } = await params;
 
     // Check if note exists and belongs to this feedback

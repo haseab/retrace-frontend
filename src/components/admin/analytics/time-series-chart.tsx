@@ -15,9 +15,17 @@ interface TimeSeriesChartProps {
   data: TimeSeriesDataPoint[];
   color: string;
   accentColor: string;
+  metricLabel: string;
 }
 
-export function TimeSeriesChart({ title, subtitle, data, color, accentColor }: TimeSeriesChartProps) {
+export function TimeSeriesChart({
+  title,
+  subtitle,
+  data,
+  color,
+  accentColor,
+  metricLabel,
+}: TimeSeriesChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const maxCount = Math.max(...data.map(d => d.count), 1);
   const totalCount = data.reduce((sum, d) => sum + d.count, 0);
@@ -35,7 +43,9 @@ export function TimeSeriesChart({ title, subtitle, data, color, accentColor }: T
         </div>
         <div className="text-right">
           <div className="text-2xl font-bold">{totalCount.toLocaleString()}</div>
-          <div className="text-xs text-[hsl(var(--muted-foreground))]">total downloads</div>
+          <div className="text-xs text-[hsl(var(--muted-foreground))]">
+            total {metricLabel}
+          </div>
         </div>
       </div>
 
@@ -65,7 +75,9 @@ export function TimeSeriesChart({ title, subtitle, data, color, accentColor }: T
                 {isHovered && (
                   <div className="absolute bottom-full mb-2 z-20 animate-fade-in">
                     <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-lg shadow-xl shadow-black/30 px-3 py-2 text-sm whitespace-nowrap">
-                      <div className="font-semibold">{point.count.toLocaleString()} downloads</div>
+                      <div className="font-semibold">
+                        {point.count.toLocaleString()} {metricLabel}
+                      </div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{point.fullLabel}</div>
                     </div>
                     <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 bg-[hsl(var(--popover))] border-r border-b border-[hsl(var(--border))] rotate-45" />

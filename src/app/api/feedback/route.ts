@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, initDatabase } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
 import {
@@ -52,8 +52,6 @@ interface FeedbackSubmission {
   screenshotData?: string; // Base64 encoded PNG
 }
 
-// Ensure table exists on first request
-let initialized = false;
 const DEFAULT_FEEDBACK_PAGE_SIZE = 30;
 const MAX_FEEDBACK_PAGE_SIZE = 50;
 const MAX_FEEDBACK_BODY_BYTES = getPositiveIntegerFromEnv("MAX_FEEDBACK_BODY_BYTES", 6 * 1024 * 1024);
@@ -1142,16 +1140,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Initialize database on first request
-    if (!initialized) {
-      const initStartedAt = Date.now();
-      await initDatabase();
-      initialized = true;
-      logger.info("database_initialized", {
-        initMs: elapsedMs(initStartedAt),
-      });
-    }
-
     // Validate feedback type
     const validTypes = ["Bug Report", "Feature Request", "Question"];
     if (!validTypes.includes(body.type)) {
@@ -1306,12 +1294,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Initialize database on first request
-    if (!initialized) {
-      await initDatabase();
-      initialized = true;
-    }
-
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
     const status = searchParams.get("status");
