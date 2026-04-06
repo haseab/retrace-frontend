@@ -1,3 +1,4 @@
+import { gunzipSync, gzipSync } from "node:zlib";
 import type { Client } from "@libsql/client";
 import { extractLeadingBracketTokens } from "@/lib/feedback-display";
 import { writeStructuredLog } from "@/lib/api-route-logger";
@@ -118,12 +119,23 @@ export interface NormalizedDiagnosticsState {
   recentMetricEvents: DiagnosticMetricEvent[];
 }
 
+export interface FeedbackRawDiagnosticsStatement {
+  statement: {
+    sql: string;
+    args: [number, number, string, Uint8Array];
+  };
+  decodedBytes: number;
+  storedBytes: number;
+}
+
 const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const VALID_TYPES = new Set(["Bug Report", "Feature Request", "Question"]);
 const BUG_TYPE_KEYWORDS = ["bug", "crash", "broken", "regression", "error", "failure", "fix"];
 const QUESTION_TYPE_KEYWORDS = ["question", "q", "support", "help"];
 const FEATURE_TYPE_KEYWORDS = ["feature", "enhancement", "request", "idea"];
+const RAW_DIAGNOSTICS_SCHEMA_VERSION = 1;
+const RAW_DIAGNOSTICS_CONTENT_ENCODING = "gzip";
 
 export const DEFAULT_DISPLAY_INFO: FeedbackDisplayInfo = {
   count: 0,
@@ -413,13 +425,8 @@ function hasPerformanceData(value: FeedbackPerformanceInfo): boolean {
   );
 }
 
-function getOrCreateState(map: Map<number, NormalizedDiagnosticsState>, feedbackId: number): NormalizedDiagnosticsState {
-  const existing = map.get(feedbackId);
-  if (existing) {
-    return existing;
-  }
-
-  const state: NormalizedDiagnosticsState = {
+function createNormalizedDiagnosticsState(): NormalizedDiagnosticsState {
+  return {
     hasPerformance: false,
     hasProcess: false,
     hasAccessibility: false,
@@ -438,7 +445,15 @@ function getOrCreateState(map: Map<number, NormalizedDiagnosticsState>, feedback
     recentErrors: [],
     recentMetricEvents: [],
   };
+}
 
+function getOrCreateState(map: Map<number, NormalizedDiagnosticsState>, feedbackId: number): NormalizedDiagnosticsState {
+  const existing = map.get(feedbackId);
+  if (existing) {
+    return existing;
+  }
+
+  const state = createNormalizedDiagnosticsState();
   map.set(feedbackId, state);
   return state;
 }
@@ -475,12 +490,227 @@ interface FeedbackLogInsertRow {
   message: string;
 }
 
+function hasDiagnosticsPayloadFields(diagnostics: FeedbackDiagnosticsPayload): boolean {
+  return (
+    diagnostics.settingsSnapshot !== undefined ||
+    diagnostics.recentErrors !== undefined ||
+    diagnostics.recentLogs !== undefined ||
+    diagnostics.displayInfo !== undefined ||
+    diagnostics.processInfo !== undefined ||
+    diagnostics.accessibilityInfo !== undefined ||
+    diagnostics.performanceInfo !== undefined ||
+    diagnostics.recentMetricEvents !== undefined ||
+    diagnostics.emergencyCrashReports !== undefined
+  );
+}
+
+function coerceBlobToBuffer(value: unknown): Buffer | null {
+  if (value instanceof ArrayBuffer) {
+    return Buffer.from(value);
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  return null;
+}
+
+function parseStoredRawDiagnosticsPayload(
+  payloadBlob: unknown,
+  contentEncoding: unknown
+): FeedbackDiagnosticsPayload | null {
+  const rawBuffer = coerceBlobToBuffer(payloadBlob);
+  if (!rawBuffer) {
+    return null;
+  }
+
+  const normalizedEncoding = toStringValue(contentEncoding, "identity").trim().toLowerCase();
+  let decodedBuffer: Buffer;
+
+  try {
+    if (normalizedEncoding === "gzip") {
+      decodedBuffer = gunzipSync(rawBuffer);
+    } else if (normalizedEncoding === "" || normalizedEncoding === "identity") {
+      decodedBuffer = rawBuffer;
+    } else {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decodedBuffer.toString("utf8")) as
+      | { payload?: FeedbackDiagnosticsPayload }
+      | FeedbackDiagnosticsPayload;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+
+    const maybeEnvelope = parsed as { payload?: unknown };
+    const payload = Object.prototype.hasOwnProperty.call(maybeEnvelope, "payload")
+      ? maybeEnvelope.payload
+      : parsed;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return null;
+    }
+
+    return payload as FeedbackDiagnosticsPayload;
+  } catch {
+    return null;
+  }
+}
+
+function buildNormalizedDiagnosticsStateFromPayload(
+  diagnostics: FeedbackDiagnosticsPayload,
+  options: GetNormalizedDiagnosticsOptions = {}
+): NormalizedDiagnosticsState {
+  const includePerformance = options.includePerformance ?? true;
+  const includeProcess = options.includeProcess ?? true;
+  const includeAccessibility = options.includeAccessibility ?? true;
+  const includeDisplays = options.includeDisplays ?? true;
+  const includeSettings = options.includeSettings ?? true;
+  const includeCrashReports = options.includeCrashReports ?? true;
+  const includeRecentErrors = options.includeRecentErrors ?? true;
+  const includeRecentLogs = options.includeRecentLogs ?? true;
+  const includeRecentMetricEvents = options.includeRecentMetricEvents ?? true;
+
+  const normalizedDisplayInfo = normalizeDisplayInfo(diagnostics.displayInfo);
+  const normalizedProcessInfo = normalizeProcessInfo(diagnostics.processInfo);
+  const normalizedAccessibilityInfo = normalizeAccessibilityInfo(diagnostics.accessibilityInfo);
+  const normalizedPerformanceInfo = normalizePerformanceInfo(diagnostics.performanceInfo);
+  const normalizedSettingsSnapshot = normalizeSettingsSnapshot(diagnostics.settingsSnapshot);
+  const normalizedCrashReports = normalizeStringArray(diagnostics.emergencyCrashReports);
+  const normalizedRecentLogs = normalizeStringArray(diagnostics.recentLogs);
+  const normalizedRecentErrors = normalizeStringArray(diagnostics.recentErrors);
+  const normalizedRecentMetricEvents = normalizeRecentMetricEvents(diagnostics.recentMetricEvents);
+
+  const state = createNormalizedDiagnosticsState();
+
+  if (includePerformance) {
+    state.hasPerformance =
+      hasPerformanceData(normalizedPerformanceInfo) ||
+      diagnostics.performanceInfo !== undefined;
+    state.performanceInfo = normalizedPerformanceInfo;
+  }
+
+  if (includeProcess) {
+    state.hasProcess =
+      hasProcessData(normalizedProcessInfo) ||
+      diagnostics.processInfo !== undefined;
+    state.processInfo = normalizedProcessInfo;
+  }
+
+  if (includeAccessibility) {
+    state.hasAccessibility =
+      hasAccessibilityData(normalizedAccessibilityInfo) ||
+      diagnostics.accessibilityInfo !== undefined;
+    state.accessibilityInfo = normalizedAccessibilityInfo;
+  }
+
+  if (includeDisplays) {
+    state.hasDisplays =
+      normalizedDisplayInfo.count > 0 ||
+      normalizedDisplayInfo.displays.length > 0 ||
+      diagnostics.displayInfo !== undefined;
+    state.displayInfo = {
+      ...normalizedDisplayInfo,
+      displays: [...normalizedDisplayInfo.displays],
+      count: Math.max(
+        normalizedDisplayInfo.count,
+        normalizedDisplayInfo.displays.length
+      ),
+    };
+  }
+
+  if (includeSettings) {
+    state.hasSettings =
+      Object.keys(normalizedSettingsSnapshot).length > 0 ||
+      diagnostics.settingsSnapshot !== undefined;
+    state.settingsSnapshot = normalizedSettingsSnapshot;
+  }
+
+  if (includeCrashReports) {
+    state.hasCrashReports =
+      normalizedCrashReports.length > 0 ||
+      diagnostics.emergencyCrashReports !== undefined;
+    state.emergencyCrashReports = normalizedCrashReports;
+  }
+
+  const includeAnyLogEntries = includeRecentErrors || includeRecentLogs;
+  if (includeAnyLogEntries) {
+    state.hasLogEntries =
+      normalizedRecentLogs.length > 0 ||
+      normalizedRecentErrors.length > 0 ||
+      diagnostics.recentLogs !== undefined ||
+      diagnostics.recentErrors !== undefined;
+    if (includeRecentLogs) {
+      state.recentLogs = normalizedRecentLogs;
+    }
+    if (includeRecentErrors) {
+      state.recentErrors = normalizedRecentErrors;
+    }
+  }
+
+  if (includeRecentMetricEvents) {
+    state.hasMetricEvents =
+      normalizedRecentMetricEvents.length > 0 ||
+      diagnostics.recentMetricEvents !== undefined;
+    state.recentMetricEvents = normalizedRecentMetricEvents;
+  }
+
+  return state;
+}
+
 const MAX_SQLITE_PARAMETERS_PER_STATEMENT = 900;
 const LOG_ENTRY_COLUMNS_PER_ROW = 4;
 const MAX_LOG_ROWS_PER_INSERT = Math.max(
   1,
   Math.floor(MAX_SQLITE_PARAMETERS_PER_STATEMENT / LOG_ENTRY_COLUMNS_PER_ROW)
 );
+
+export function buildFeedbackRawDiagnosticsStatement(
+  feedbackId: number,
+  diagnostics: FeedbackDiagnosticsPayload
+): FeedbackRawDiagnosticsStatement | null {
+  if (!hasDiagnosticsPayloadFields(diagnostics)) {
+    return null;
+  }
+
+  const envelope = {
+    version: RAW_DIAGNOSTICS_SCHEMA_VERSION,
+    payload: diagnostics,
+  };
+  const serialized = Buffer.from(
+    stringifyJson(envelope, { version: RAW_DIAGNOSTICS_SCHEMA_VERSION, payload: {} }),
+    "utf8"
+  );
+  const compressed = gzipSync(serialized);
+
+  return {
+    statement: {
+      sql: `
+        INSERT INTO feedback_diagnostics_raw (
+          feedback_id, schema_version, content_encoding, payload_data
+        ) VALUES (?, ?, ?, ?)
+        ON CONFLICT(feedback_id) DO UPDATE SET
+          schema_version = excluded.schema_version,
+          content_encoding = excluded.content_encoding,
+          payload_data = excluded.payload_data,
+          updated_at = datetime('now')
+      `,
+      args: [
+        feedbackId,
+        RAW_DIAGNOSTICS_SCHEMA_VERSION,
+        RAW_DIAGNOSTICS_CONTENT_ENCODING,
+        compressed,
+      ],
+    },
+    decodedBytes: serialized.byteLength,
+    storedBytes: compressed.byteLength,
+  };
+}
 
 async function insertFeedbackLogEntries(
   database: Client,
@@ -932,6 +1162,64 @@ export async function upsertFeedbackDiagnostics(
   }
 
   return { displayCount };
+}
+
+export async function getFeedbackDiagnosticsByFeedbackIds(
+  database: Client,
+  feedbackIds: number[],
+  options: GetNormalizedDiagnosticsOptions = {}
+): Promise<Map<number, NormalizedDiagnosticsState>> {
+  const ids = uniqueFeedbackIds(feedbackIds);
+  if (ids.length === 0) {
+    return new Map<number, NormalizedDiagnosticsState>();
+  }
+
+  const placeholders = buildInClause(ids);
+  const diagnosticsById = new Map<number, NormalizedDiagnosticsState>();
+  const fallbackIds = new Set<number>(ids);
+
+  const rawResult = await database.execute({
+    sql: `
+      SELECT feedback_id, content_encoding, payload_data
+      FROM feedback_diagnostics_raw
+      WHERE feedback_id IN (${placeholders})
+    `,
+    args: ids,
+  });
+
+  for (const row of rawResult.rows as Record<string, unknown>[]) {
+    const feedbackId = toInteger(row.feedback_id);
+    if (feedbackId === null) {
+      continue;
+    }
+
+    const payload = parseStoredRawDiagnosticsPayload(row.payload_data, row.content_encoding);
+    if (!payload) {
+      continue;
+    }
+
+    diagnosticsById.set(
+      feedbackId,
+      buildNormalizedDiagnosticsStateFromPayload(payload, options)
+    );
+    fallbackIds.delete(feedbackId);
+  }
+
+  if (fallbackIds.size === 0) {
+    return diagnosticsById;
+  }
+
+  const normalizedDiagnosticsById = await getNormalizedDiagnosticsByFeedbackIds(
+    database,
+    Array.from(fallbackIds),
+    options
+  );
+
+  for (const [feedbackId, state] of normalizedDiagnosticsById) {
+    diagnosticsById.set(feedbackId, state);
+  }
+
+  return diagnosticsById;
 }
 
 export async function getNormalizedDiagnosticsByFeedbackIds(

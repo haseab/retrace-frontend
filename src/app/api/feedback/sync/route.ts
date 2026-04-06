@@ -62,41 +62,6 @@ const DEFAULT_GITHUB_OWNER = "haseab";
 const DEFAULT_GITHUB_REPO = "retrace";
 const DEFAULT_FEATUREBASE_ORG = "retrace";
 
-const EMPTY_ARRAY = "[]";
-const EMPTY_OBJECT = "{}";
-const EMPTY_DISPLAY_INFO = JSON.stringify({ count: 0, displays: [], mainDisplayIndex: 0 });
-const EMPTY_PROCESS_INFO = JSON.stringify({
-  totalRunning: 0,
-  eventMonitoringApps: 0,
-  windowManagementApps: 0,
-  securityApps: 0,
-  hasJamf: false,
-  hasKandji: false,
-  axuiServerCPU: 0,
-  windowServerCPU: 0,
-});
-const EMPTY_ACCESSIBILITY_INFO = JSON.stringify({
-  voiceOverEnabled: false,
-  switchControlEnabled: false,
-  reduceMotionEnabled: false,
-  increaseContrastEnabled: false,
-  reduceTransparencyEnabled: false,
-  differentiateWithoutColorEnabled: false,
-  displayHasInvertedColors: false,
-});
-const EMPTY_PERFORMANCE_INFO = JSON.stringify({
-  cpuUsagePercent: 0,
-  memoryUsedGB: 0,
-  memoryTotalGB: 0,
-  memoryPressure: "unknown",
-  swapUsedGB: 0,
-  thermalState: "unknown",
-  processorCount: 0,
-  isLowPowerModeEnabled: false,
-  powerSource: "unknown",
-  batteryLevel: null,
-});
-
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -913,15 +878,7 @@ async function upsertExternalItems(
           device_model,
           total_disk_space,
           free_disk_space,
-          recent_errors,
-          recent_logs,
           diagnostics_timestamp,
-          settings_snapshot,
-          display_info,
-          process_info,
-          accessibility_info,
-          performance_info,
-          emergency_crash_reports,
           display_count,
           has_screenshot,
           external_source,
@@ -930,7 +887,7 @@ async function upsertExternalItems(
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         item.type,
@@ -947,15 +904,7 @@ async function upsertExternalItems(
         "n/a",
         "n/a",
         "n/a",
-        EMPTY_ARRAY,
-        EMPTY_ARRAY,
         item.updatedAt,
-        EMPTY_OBJECT,
-        EMPTY_DISPLAY_INFO,
-        EMPTY_PROCESS_INFO,
-        EMPTY_ACCESSIBILITY_INFO,
-        EMPTY_PERFORMANCE_INFO,
-        EMPTY_ARRAY,
         0,
         0,
         item.source,

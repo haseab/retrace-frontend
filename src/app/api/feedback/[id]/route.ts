@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import {
-  getNormalizedDiagnosticsByFeedbackIds,
+  getFeedbackDiagnosticsByFeedbackIds,
   mapFeedbackRowToApiItem,
 } from "@/lib/feedback-diagnostics";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
@@ -100,8 +100,8 @@ export async function GET(
 
     const row = result.rows[0] as Record<string, unknown>;
     const feedbackId = toFeedbackId(row.id);
-    const normalizedDiagnosticsById = feedbackId
-      ? await getNormalizedDiagnosticsByFeedbackIds(db, [feedbackId], {
+    const diagnosticsById = feedbackId
+      ? await getFeedbackDiagnosticsByFeedbackIds(db, [feedbackId], {
           includeRecentErrors: true,
           includeRecentLogs,
         })
@@ -118,7 +118,7 @@ export async function GET(
       includeRecentLogs,
       feedback: mapFeedbackRowToApiItem(
         row,
-        feedbackId ? normalizedDiagnosticsById.get(feedbackId) : undefined
+        feedbackId ? diagnosticsById.get(feedbackId) : undefined
       ),
     });
   } catch (error) {
@@ -246,8 +246,8 @@ export async function PATCH(
 
     const row = result.rows[0] as Record<string, unknown>;
     const feedbackId = toFeedbackId(row.id);
-    const normalizedDiagnosticsById = feedbackId
-      ? await getNormalizedDiagnosticsByFeedbackIds(db, [feedbackId])
+    const diagnosticsById = feedbackId
+      ? await getFeedbackDiagnosticsByFeedbackIds(db, [feedbackId])
       : new Map();
 
     logger.success({
@@ -261,7 +261,7 @@ export async function PATCH(
       success: true,
       feedback: mapFeedbackRowToApiItem(
         row,
-        feedbackId ? normalizedDiagnosticsById.get(feedbackId) : undefined
+        feedbackId ? diagnosticsById.get(feedbackId) : undefined
       ),
     });
   } catch (error) {

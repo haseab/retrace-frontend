@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
 import {
+  buildFeedbackRawDiagnosticsStatement,
   mapFeedbackSummaryRowToApiItem,
-  upsertFeedbackDiagnostics,
 } from "@/lib/feedback-diagnostics";
 import type {
   FeedbackAccessibilityInfo,
@@ -1178,8 +1178,6 @@ export async function POST(request: NextRequest) {
 
   // App clients submit feedback directly and do not send the dashboard bearer token.
   // Keep POST ingest open; bearer auth is enforced on admin read/write APIs.
-  const traceId = logger.traceId;
-
   if (rateLimit.limited) {
     logger.warn("rate_limited", {
       status: 429,
@@ -1279,61 +1277,115 @@ export async function POST(request: NextRequest) {
     const externalUrl = normalizeOptionalText(body.externalUrl);
     const hasScreenshot = Boolean(body.includeScreenshot && screenshotBuffer);
 
-    // Insert into Turso database with diagnostics fields
-    const insertFeedbackStartedAt = Date.now();
-    const result = await db.execute({
-      sql: `
-        INSERT INTO feedback (
-          type, email, description, status, priority, notes, is_read,
-          app_version, build_number, macos_version,
-          device_model, total_disk_space, free_disk_space, session_count,
-          frame_count, segment_count, database_size_mb, recent_errors,
-          recent_logs, diagnostics_timestamp, settings_snapshot, display_info,
-          process_info, accessibility_info, performance_info, emergency_crash_reports,
-          display_count, has_screenshot, screenshot_data, external_source, external_id, external_url,
-          included_diagnostic_sections, excluded_diagnostic_sections,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `,
-      args: [
-        body.type,
-        body.email || null,
-        body.description,
-        "open",
-        "medium",
-        "",
-        0,
-        body.diagnostics.appVersion ?? null,
-        body.diagnostics.buildNumber ?? null,
-        body.diagnostics.macOSVersion ?? null,
-        body.diagnostics.deviceModel ?? null,
-        body.diagnostics.totalDiskSpace ?? null,
-        body.diagnostics.freeDiskSpace ?? null,
-        body.diagnostics.databaseStats?.sessionCount ?? null,
-        body.diagnostics.databaseStats?.frameCount ?? null,
-        body.diagnostics.databaseStats?.segmentCount ?? null,
-        body.diagnostics.databaseStats?.databaseSizeMB ?? null,
-        serializeOptionalJson(body.diagnostics.recentErrors),
-        serializeOptionalJson(body.diagnostics.recentLogs),
-        diagnosticsTimestamp,
-        serializeOptionalJson(body.diagnostics.settingsSnapshot),
-        serializeOptionalJson(body.diagnostics.displayInfo),
-        serializeOptionalJson(body.diagnostics.processInfo),
-        serializeOptionalJson(body.diagnostics.accessibilityInfo),
-        serializeOptionalJson(body.diagnostics.performanceInfo),
-        serializeOptionalJson(body.diagnostics.emergencyCrashReports),
-        displayCount,
-        hasScreenshot ? 1 : 0,
-        hasScreenshot ? screenshotBuffer : null,
-        externalSource,
-        externalId,
-        externalUrl,
-        serializeOptionalJson(body.diagnostics.includedSections),
-        serializeOptionalJson(body.diagnostics.excludedSections),
-      ],
-    });
+    const diagnosticsPayload = {
+      settingsSnapshot: body.diagnostics.settingsSnapshot,
+      recentErrors: body.diagnostics.recentErrors,
+      recentLogs: body.diagnostics.recentLogs,
+      displayInfo: body.diagnostics.displayInfo,
+      processInfo: body.diagnostics.processInfo,
+      accessibilityInfo: body.diagnostics.accessibilityInfo,
+      performanceInfo: body.diagnostics.performanceInfo,
+      emergencyCrashReports: body.diagnostics.emergencyCrashReports,
+      recentMetricEvents: body.diagnostics.recentMetricEvents,
+    };
 
-    const feedbackId = toFeedbackId(result.lastInsertRowid);
+    const transaction = await db.transaction("write");
+    let feedbackId: number | null = null;
+    let rawDiagnosticsDecodedBytes = 0;
+    let rawDiagnosticsStoredBytes = 0;
+    const insertFeedbackStartedAt = Date.now();
+    let diagnosticsWriteStartedAt = 0;
+
+    try {
+      const result = await transaction.execute({
+        sql: `
+          INSERT INTO feedback (
+            type, email, description, status, priority, notes, is_read,
+            app_version, build_number, macos_version,
+            device_model, total_disk_space, free_disk_space, session_count,
+            frame_count, segment_count, database_size_mb,
+            diagnostics_timestamp, display_count, has_screenshot,
+            external_source, external_id, external_url,
+            included_diagnostic_sections, excluded_diagnostic_sections,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `,
+        args: [
+          body.type,
+          body.email || null,
+          body.description,
+          "open",
+          "medium",
+          "",
+          0,
+          body.diagnostics.appVersion ?? null,
+          body.diagnostics.buildNumber ?? null,
+          body.diagnostics.macOSVersion ?? null,
+          body.diagnostics.deviceModel ?? null,
+          body.diagnostics.totalDiskSpace ?? null,
+          body.diagnostics.freeDiskSpace ?? null,
+          body.diagnostics.databaseStats?.sessionCount ?? null,
+          body.diagnostics.databaseStats?.frameCount ?? null,
+          body.diagnostics.databaseStats?.segmentCount ?? null,
+          body.diagnostics.databaseStats?.databaseSizeMB ?? null,
+          diagnosticsTimestamp,
+          displayCount,
+          hasScreenshot ? 1 : 0,
+          externalSource,
+          externalId,
+          externalUrl,
+          serializeOptionalJson(body.diagnostics.includedSections),
+          serializeOptionalJson(body.diagnostics.excludedSections),
+        ],
+      });
+
+      feedbackId = toFeedbackId(result.lastInsertRowid);
+      if (feedbackId === null) {
+        throw new Error("Failed to determine inserted feedback id");
+      }
+
+      const secondaryStatements: Array<{
+        sql: string;
+        args: Array<string | number | Uint8Array | null>;
+      }> = [];
+      const rawDiagnosticsStatement = buildFeedbackRawDiagnosticsStatement(
+        feedbackId,
+        diagnosticsPayload
+      );
+      if (rawDiagnosticsStatement) {
+        secondaryStatements.push(rawDiagnosticsStatement.statement);
+        rawDiagnosticsDecodedBytes = rawDiagnosticsStatement.decodedBytes;
+        rawDiagnosticsStoredBytes = rawDiagnosticsStatement.storedBytes;
+      }
+
+      if (hasScreenshot && screenshotBuffer) {
+        secondaryStatements.push({
+          sql: `
+            INSERT INTO feedback_screenshots (
+              feedback_id, content_type, screenshot_data
+            ) VALUES (?, ?, ?)
+            ON CONFLICT(feedback_id) DO UPDATE SET
+              content_type = excluded.content_type,
+              screenshot_data = excluded.screenshot_data,
+              updated_at = datetime('now')
+          `,
+          args: [feedbackId, "image/png", screenshotBuffer],
+        });
+      }
+
+      if (secondaryStatements.length > 0) {
+        diagnosticsWriteStartedAt = Date.now();
+        await transaction.batch(secondaryStatements);
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback().catch(() => undefined);
+      throw error;
+    } finally {
+      transaction.close();
+    }
+
     if (feedbackId === null) {
       throw new Error("Failed to determine inserted feedback id");
     }
@@ -1348,34 +1400,12 @@ export async function POST(request: NextRequest) {
       decodedBytes: parsedBodyResult.decodedBytes,
     });
 
-    const diagnosticsWriteStartedAt = Date.now();
-    await upsertFeedbackDiagnostics(db, feedbackId, {
-      settingsSnapshot: body.diagnostics.settingsSnapshot,
-      recentErrors: body.diagnostics.recentErrors,
-      recentLogs: body.diagnostics.recentLogs,
-      displayInfo: body.diagnostics.displayInfo,
-      processInfo: body.diagnostics.processInfo,
-      accessibilityInfo: body.diagnostics.accessibilityInfo,
-      performanceInfo: body.diagnostics.performanceInfo,
-      emergencyCrashReports: body.diagnostics.emergencyCrashReports,
-      recentMetricEvents: body.diagnostics.recentMetricEvents,
-    }, {
-      traceId,
-      writeSettings: body.diagnostics.settingsSnapshot !== undefined,
-      writeLogEntries:
-        body.diagnostics.recentErrors !== undefined ||
-        body.diagnostics.recentLogs !== undefined,
-      writeDisplays: body.diagnostics.displayInfo !== undefined,
-      writeProcess: body.diagnostics.processInfo !== undefined,
-      writeAccessibility: body.diagnostics.accessibilityInfo !== undefined,
-      writePerformance: body.diagnostics.performanceInfo !== undefined,
-      writeCrashReports: body.diagnostics.emergencyCrashReports !== undefined,
-      writeMetricEvents: body.diagnostics.recentMetricEvents !== undefined,
-      logTimings: true,
-    });
     logger.info("diagnostics_persisted", {
       feedbackId,
-      diagnosticsWriteMs: elapsedMs(diagnosticsWriteStartedAt),
+      diagnosticsWriteMs: diagnosticsWriteStartedAt === 0 ? 0 : elapsedMs(diagnosticsWriteStartedAt),
+      mode: "raw",
+      rawDiagnosticsDecodedBytes,
+      rawDiagnosticsStoredBytes,
       recentLogs: body.diagnostics.recentLogs?.length ?? 0,
       recentErrors: body.diagnostics.recentErrors?.length ?? 0,
       crashReports: body.diagnostics.emergencyCrashReports?.length ?? 0,

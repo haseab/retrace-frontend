@@ -20,7 +20,7 @@ export async function GET(
     const { id } = await params;
 
     const result = await db.execute({
-      sql: "SELECT screenshot_data, has_screenshot FROM feedback WHERE id = ?",
+      sql: "SELECT has_screenshot, screenshot_data FROM feedback WHERE id = ?",
       args: [id],
     });
 
@@ -35,11 +35,36 @@ export async function GET(
     const row = result.rows[0];
 
     if (!row.has_screenshot || !row.screenshot_data) {
-      logger.warn("screenshot_not_found", { status: 404, feedbackId: id });
-      return NextResponse.json(
-        { error: "No screenshot available for this feedback item" },
-        { status: 404 }
-      );
+      const screenshotResult = await db.execute({
+        sql: "SELECT screenshot_data FROM feedback_screenshots WHERE feedback_id = ?",
+        args: [id],
+      });
+      const screenshotRow = screenshotResult.rows[0];
+
+      if (!row.has_screenshot || !screenshotRow?.screenshot_data) {
+        logger.warn("screenshot_not_found", { status: 404, feedbackId: id });
+        return NextResponse.json(
+          { error: "No screenshot available for this feedback item" },
+          { status: 404 }
+        );
+      }
+
+      const screenshotBuffer = screenshotRow.screenshot_data as ArrayBuffer;
+
+      logger.success({
+        status: 200,
+        feedbackId: id,
+        byteLength: screenshotBuffer.byteLength,
+        source: "feedback_screenshots",
+      });
+
+      return new NextResponse(screenshotBuffer, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
     }
 
     // The screenshot_data is stored as a BLOB (Buffer)
@@ -49,6 +74,7 @@ export async function GET(
       status: 200,
       feedbackId: id,
       byteLength: screenshotBuffer.byteLength,
+      source: "feedback",
     });
 
     return new NextResponse(screenshotBuffer, {
