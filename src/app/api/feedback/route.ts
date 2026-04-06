@@ -1234,28 +1234,6 @@ export async function POST(request: NextRequest) {
     const body = validationResult.body;
     const screenshotBuffer = validationResult.screenshotBuffer;
 
-    logger.info("payload_parsed", {
-      requestBytes: parsedBodyResult.bytesRead,
-      decodedBytes: parsedBodyResult.decodedBytes,
-      contentEncoding: parsedBodyResult.contentEncoding,
-      bodyReadMs: parsedBodyResult.bodyReadMs,
-      decompressMs: parsedBodyResult.decompressMs,
-      jsonParseMs: parsedBodyResult.jsonParseMs,
-      validationMs,
-      payloadReadyMs: parsedBodyResult.totalMs + validationMs,
-      descriptionChars: body.description?.length ?? 0,
-      screenshotBytes: screenshotBuffer?.byteLength ?? 0,
-      diagnostics: {
-        recentLogs: body.diagnostics?.recentLogs?.length ?? 0,
-        recentErrors: body.diagnostics?.recentErrors?.length ?? 0,
-        settings: body.diagnostics?.settingsSnapshot
-          ? Object.keys(body.diagnostics.settingsSnapshot).length
-          : 0,
-        crashReports: body.diagnostics?.emergencyCrashReports?.length ?? 0,
-        recentMetricEvents: body.diagnostics?.recentMetricEvents?.length ?? 0,
-      },
-    });
-
     // Validate feedback type
     const validTypes = ["Bug Report", "Feature Request", "Question"];
     if (!validTypes.includes(body.type)) {
@@ -1291,10 +1269,6 @@ export async function POST(request: NextRequest) {
 
     const transaction = await db.transaction("write");
     let feedbackId: number | null = null;
-    let rawDiagnosticsDecodedBytes = 0;
-    let rawDiagnosticsStoredBytes = 0;
-    const insertFeedbackStartedAt = Date.now();
-    let diagnosticsWriteStartedAt = 0;
 
     try {
       const result = await transaction.execute({
@@ -1353,9 +1327,7 @@ export async function POST(request: NextRequest) {
         diagnosticsPayload
       );
       if (rawDiagnosticsStatement) {
-        secondaryStatements.push(rawDiagnosticsStatement.statement);
-        rawDiagnosticsDecodedBytes = rawDiagnosticsStatement.decodedBytes;
-        rawDiagnosticsStoredBytes = rawDiagnosticsStatement.storedBytes;
+        secondaryStatements.push(rawDiagnosticsStatement);
       }
 
       if (hasScreenshot && screenshotBuffer) {
@@ -1374,7 +1346,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (secondaryStatements.length > 0) {
-        diagnosticsWriteStartedAt = Date.now();
         await transaction.batch(secondaryStatements);
       }
 
@@ -1389,27 +1360,6 @@ export async function POST(request: NextRequest) {
     if (feedbackId === null) {
       throw new Error("Failed to determine inserted feedback id");
     }
-
-    logger.info("feedback_inserted", {
-      feedbackId,
-      insertFeedbackMs: elapsedMs(insertFeedbackStartedAt),
-      displayCount,
-      hasScreenshot,
-      externalSource,
-      requestBytes: parsedBodyResult.bytesRead,
-      decodedBytes: parsedBodyResult.decodedBytes,
-    });
-
-    logger.info("diagnostics_persisted", {
-      feedbackId,
-      diagnosticsWriteMs: diagnosticsWriteStartedAt === 0 ? 0 : elapsedMs(diagnosticsWriteStartedAt),
-      mode: "raw",
-      rawDiagnosticsDecodedBytes,
-      rawDiagnosticsStoredBytes,
-      recentLogs: body.diagnostics.recentLogs?.length ?? 0,
-      recentErrors: body.diagnostics.recentErrors?.length ?? 0,
-      crashReports: body.diagnostics.emergencyCrashReports?.length ?? 0,
-    });
     logger.success({
       status: 200,
       feedbackId,

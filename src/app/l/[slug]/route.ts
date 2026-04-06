@@ -132,25 +132,16 @@ async function recordLinkClick(linkClick: LinkClickRecord) {
   });
 }
 
-function formatLinkClickLocation(city: string, country: string): string {
-  const normalizedCity = city.trim();
-  const normalizedCountry = country.trim();
-  const hasCity = normalizedCity.length > 0 && normalizedCity !== "unknown";
-  const hasCountry = normalizedCountry.length > 0 && normalizedCountry !== "unknown";
+function formatLinkClickLocation(
+  city: string,
+  region: string,
+  country: string
+): string {
+  const locationParts = [city, region, country]
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0 && value !== "unknown");
 
-  if (hasCity && hasCountry) {
-    return `${normalizedCity}, ${normalizedCountry}`;
-  }
-
-  if (hasCity) {
-    return normalizedCity;
-  }
-
-  if (hasCountry) {
-    return normalizedCountry;
-  }
-
-  return "unknown location";
+  return locationParts.length > 0 ? locationParts.join(", ") : "unknown location";
 }
 
 export async function GET(
@@ -185,6 +176,7 @@ export async function GET(
       console.log(
         `${slug}'s link got clicked from ${formatLinkClickLocation(
           linkClick.city,
+          linkClick.region,
           linkClick.country
         )}`
       );

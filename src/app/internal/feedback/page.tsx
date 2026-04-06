@@ -319,6 +319,10 @@ function buildLlmExportText({
 
 function downloadTextFile(content: string, filename: string): void {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  downloadBlobFile(blob, filename);
+}
+
+function downloadBlobFile(blob: Blob, filename: string): void {
   const url = window.URL.createObjectURL(blob);
   const link = window.document.createElement("a");
   link.href = url;
@@ -327,6 +331,29 @@ function downloadTextFile(content: string, filename: string): void {
   link.click();
   link.remove();
   window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+}
+
+function getFilenameFromContentDisposition(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const quotedMatch = value.match(/filename="([^"]+)"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  const plainMatch = value.match(/filename=([^;]+)/i);
+  return plainMatch?.[1]?.trim() || null;
 }
 
 export default function FeedbackPage() {
@@ -866,13 +893,13 @@ export default function FeedbackPage() {
     return Array.isArray(data.notes) ? data.notes : [];
   }, []);
 
-  const handleExportForLlm = useCallback(async () => {
+  const handleDownloadDiagnosticsArchive = useCallback(async () => {
     if (isExporting) {
       return;
     }
 
     if (!selectedIssue) {
-      setExportMessage("Select an issue first, then export.");
+      setExportMessage("Select an issue first, then download.");
       return;
     }
 
@@ -881,68 +908,39 @@ export default function FeedbackPage() {
 
     try {
       const issueId = selectedIssue.id;
-      const cachedIssue = issueDetailsById[issueId];
-      const baseIssue = cachedIssue ? { ...selectedIssue, ...cachedIssue } : selectedIssue;
+      const res = await authFetch(`/api/feedback/${issueId}/diagnostics`);
+      if (!res.ok) {
+        let message = `Failed to download diagnostics archive for issue #${issueId}.`;
 
-      let detailFallbackCount = 0;
-      let issueForExport = baseIssue;
-      try {
-        issueForExport = await fetchIssueDetail(issueId, true);
-      } catch (error) {
-        detailFallbackCount = 1;
-        console.error(`Failed to fetch full detail for export issue ${issueId}:`, error);
-      }
-
-      let notesFallbackCount = 0;
-      let notesThread: FeedbackNote[] = [];
-      try {
-        notesThread = await fetchIssueNotesForExport(issueId);
-      } catch (error) {
-        notesFallbackCount = 1;
-        console.error(`Failed to fetch notes for export issue ${issueId}:`, error);
-      }
-
-      const generatedAt = new Date().toISOString();
-      const exportText = buildLlmExportText({
-        generatedAt,
-        view,
-        filters,
-        issues: [{ issue: issueForExport, notesThread }],
-        detailFallbackCount,
-        notesFallbackCount,
-      });
-
-      const fileSafeTimestamp = generatedAt.replace(/[:.]/g, "-");
-      const filename = `feedback-issue-${issueId}-llm-export-${fileSafeTimestamp}.txt`;
-      downloadTextFile(exportText, filename);
-
-      let copiedToClipboard = false;
-      if (navigator.clipboard?.writeText) {
         try {
-          await navigator.clipboard.writeText(exportText);
-          copiedToClipboard = true;
-        } catch (clipboardError) {
-          console.error("Failed to copy export to clipboard:", clipboardError);
+          const data = await res.json() as { error?: string };
+          if (typeof data.error === "string" && data.error.trim().length > 0) {
+            message = data.error.trim();
+          }
+        } catch {
+          // Ignore JSON parse failures and use the fallback message.
         }
+
+        throw new Error(message);
       }
 
-      const baseMessage = `Exported issue #${issueId} to ${filename}.`;
-      setExportMessage(copiedToClipboard ? `${baseMessage} Copied to clipboard too.` : baseMessage);
+      const blob = await res.blob();
+      const filename =
+        getFilenameFromContentDisposition(res.headers.get("content-disposition")) ||
+        `feedback-issue-${issueId}-diagnostics.json.gz`;
+      downloadBlobFile(blob, filename);
+      setExportMessage(`Downloaded diagnostics archive for issue #${issueId}.`);
     } catch (error) {
-      console.error("Failed to export feedback data:", error);
-      setExportMessage("Failed to export feedback data. Try again.");
+      console.error("Failed to download diagnostics archive:", error);
+      setExportMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to download diagnostics archive. Try again."
+      );
     } finally {
       setIsExporting(false);
     }
-  }, [
-    fetchIssueDetail,
-    fetchIssueNotesForExport,
-    filters,
-    isExporting,
-    issueDetailsById,
-    selectedIssue,
-    view,
-  ]);
+  }, [isExporting, selectedIssue]);
 
   const refreshOnFocus = useCallback(async () => {
     if (focusRefreshInFlightRef.current) {
@@ -1499,7 +1497,7 @@ export default function FeedbackPage() {
                   onUpdate={handleUpdate}
                   onDelete={handleDeleteIssue}
                   onLoadRecentLogs={handleLoadRecentLogs}
-                  onDownload={handleExportForLlm}
+                  onDownload={handleDownloadDiagnosticsArchive}
                   isDownloading={isExporting}
                   downloadMessage={exportMessage}
                   isLoadingRecentLogs={isSelectedIssueLogsLoading}

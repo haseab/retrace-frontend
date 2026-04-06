@@ -119,15 +119,6 @@ export interface NormalizedDiagnosticsState {
   recentMetricEvents: DiagnosticMetricEvent[];
 }
 
-export interface FeedbackRawDiagnosticsStatement {
-  statement: {
-    sql: string;
-    args: [number, number, string, Uint8Array];
-  };
-  decodedBytes: number;
-  storedBytes: number;
-}
-
 const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const VALID_TYPES = new Set(["Bug Report", "Feature Request", "Question"]);
@@ -673,7 +664,7 @@ const MAX_LOG_ROWS_PER_INSERT = Math.max(
 export function buildFeedbackRawDiagnosticsStatement(
   feedbackId: number,
   diagnostics: FeedbackDiagnosticsPayload
-): FeedbackRawDiagnosticsStatement | null {
+): { sql: string; args: [number, number, string, Uint8Array] } | null {
   if (!hasDiagnosticsPayloadFields(diagnostics)) {
     return null;
   }
@@ -689,26 +680,22 @@ export function buildFeedbackRawDiagnosticsStatement(
   const compressed = gzipSync(serialized);
 
   return {
-    statement: {
-      sql: `
-        INSERT INTO feedback_diagnostics_raw (
-          feedback_id, schema_version, content_encoding, payload_data
-        ) VALUES (?, ?, ?, ?)
-        ON CONFLICT(feedback_id) DO UPDATE SET
-          schema_version = excluded.schema_version,
-          content_encoding = excluded.content_encoding,
-          payload_data = excluded.payload_data,
-          updated_at = datetime('now')
-      `,
-      args: [
-        feedbackId,
-        RAW_DIAGNOSTICS_SCHEMA_VERSION,
-        RAW_DIAGNOSTICS_CONTENT_ENCODING,
-        compressed,
-      ],
-    },
-    decodedBytes: serialized.byteLength,
-    storedBytes: compressed.byteLength,
+    sql: `
+      INSERT INTO feedback_diagnostics_raw (
+        feedback_id, schema_version, content_encoding, payload_data
+      ) VALUES (?, ?, ?, ?)
+      ON CONFLICT(feedback_id) DO UPDATE SET
+        schema_version = excluded.schema_version,
+        content_encoding = excluded.content_encoding,
+        payload_data = excluded.payload_data,
+        updated_at = datetime('now')
+    `,
+    args: [
+      feedbackId,
+      RAW_DIAGNOSTICS_SCHEMA_VERSION,
+      RAW_DIAGNOSTICS_CONTENT_ENCODING,
+      compressed,
+    ],
   };
 }
 
