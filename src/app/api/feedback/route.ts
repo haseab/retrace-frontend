@@ -97,12 +97,26 @@ interface FeedbackBodyReadSuccess {
   ok: true;
   body: unknown;
   bytesRead: number;
+  decodedBytes: number;
+  contentEncoding: string;
+  bodyReadMs: number;
+  decompressMs: number;
+  jsonParseMs: number;
+  totalMs: number;
 }
 
 interface FeedbackBodyReadFailure {
   ok: false;
   status: 400 | 413;
   error: string;
+  stage?: "content_length" | "body_missing" | "body_read" | "decompress" | "json_parse";
+  bytesRead?: number;
+  decodedBytes?: number;
+  contentEncoding?: string;
+  bodyReadMs?: number;
+  decompressMs?: number;
+  jsonParseMs?: number;
+  totalMs?: number;
 }
 
 type FeedbackBodyReadResult = FeedbackBodyReadSuccess | FeedbackBodyReadFailure;
@@ -606,6 +620,8 @@ async function readRequestJsonWithLimit(
   request: NextRequest,
   maxBytes: number
 ): Promise<FeedbackBodyReadResult> {
+  const startedAt = Date.now();
+  const contentEncoding = request.headers.get("content-encoding")?.trim() || "identity";
   const contentLengthHeader = request.headers.get("content-length");
   if (contentLengthHeader) {
     const parsedContentLength = Number(contentLengthHeader);
@@ -614,6 +630,9 @@ async function readRequestJsonWithLimit(
         ok: false,
         status: 413,
         error: `Payload too large. Max body size is ${maxBytes} bytes.`,
+        stage: "content_length",
+        contentEncoding,
+        totalMs: elapsedMs(startedAt),
       };
     }
   }
@@ -623,9 +642,13 @@ async function readRequestJsonWithLimit(
       ok: false,
       status: 400,
       error: "Request body is required.",
+      stage: "body_missing",
+      contentEncoding,
+      totalMs: elapsedMs(startedAt),
     };
   }
 
+  const bodyReadStartedAt = Date.now();
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let bytesRead = 0;
@@ -647,6 +670,11 @@ async function readRequestJsonWithLimit(
         ok: false,
         status: 413,
         error: `Payload too large. Max body size is ${maxBytes} bytes.`,
+        stage: "body_read",
+        bytesRead,
+        contentEncoding,
+        bodyReadMs: elapsedMs(bodyReadStartedAt),
+        totalMs: elapsedMs(startedAt),
       };
     }
 
@@ -658,6 +686,11 @@ async function readRequestJsonWithLimit(
       ok: false,
       status: 400,
       error: "Request body is required.",
+      stage: "body_read",
+      bytesRead,
+      contentEncoding,
+      bodyReadMs: elapsedMs(bodyReadStartedAt),
+      totalMs: elapsedMs(startedAt),
     };
   }
 
@@ -667,8 +700,10 @@ async function readRequestJsonWithLimit(
     combined.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  const bodyReadMs = elapsedMs(bodyReadStartedAt);
 
   let decodedBody: Uint8Array;
+  const decodeStartedAt = Date.now();
   try {
     decodedBody = decodeFeedbackRequestBody(
       combined,
@@ -679,10 +714,18 @@ async function readRequestJsonWithLimit(
       ok: false,
       status: 400,
       error: "Invalid compressed request body.",
+      stage: "decompress",
+      bytesRead,
+      contentEncoding,
+      bodyReadMs,
+      decompressMs: elapsedMs(decodeStartedAt),
+      totalMs: elapsedMs(startedAt),
     };
   }
+  const decompressMs = elapsedMs(decodeStartedAt);
 
   let parsedBody: unknown;
+  const parseStartedAt = Date.now();
   try {
     parsedBody = JSON.parse(new TextDecoder().decode(decodedBody));
   } catch {
@@ -690,13 +733,28 @@ async function readRequestJsonWithLimit(
       ok: false,
       status: 400,
       error: "Invalid JSON payload.",
+      stage: "json_parse",
+      bytesRead,
+      decodedBytes: decodedBody.byteLength,
+      contentEncoding,
+      bodyReadMs,
+      decompressMs,
+      jsonParseMs: elapsedMs(parseStartedAt),
+      totalMs: elapsedMs(startedAt),
     };
   }
+  const jsonParseMs = elapsedMs(parseStartedAt);
 
   return {
     ok: true,
     body: parsedBody,
     bytesRead,
+    decodedBytes: decodedBody.byteLength,
+    contentEncoding,
+    bodyReadMs,
+    decompressMs,
+    jsonParseMs,
+    totalMs: elapsedMs(startedAt),
   };
 }
 
@@ -1132,12 +1190,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const parseStartedAt = Date.now();
     const parsedBodyResult = await readRequestJsonWithLimit(request, MAX_FEEDBACK_BODY_BYTES);
     if (!parsedBodyResult.ok) {
       logger.warn("invalid_payload", {
         status: parsedBodyResult.status,
         reason: parsedBodyResult.error,
+        stage: parsedBodyResult.stage,
+        requestBytes: parsedBodyResult.bytesRead,
+        decodedBytes: parsedBodyResult.decodedBytes,
+        contentEncoding: parsedBodyResult.contentEncoding,
+        bodyReadMs: parsedBodyResult.bodyReadMs,
+        decompressMs: parsedBodyResult.decompressMs,
+        jsonParseMs: parsedBodyResult.jsonParseMs,
+        payloadReadMs: parsedBodyResult.totalMs,
       });
       return NextResponse.json(
         { error: parsedBodyResult.error },
@@ -1145,11 +1210,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const validationStartedAt = Date.now();
     const validationResult = validateFeedbackPayload(parsedBodyResult.body);
+    const validationMs = elapsedMs(validationStartedAt);
     if (!validationResult.ok) {
       logger.warn("invalid_payload", {
         status: validationResult.status,
         reason: validationResult.error,
+        stage: "validation",
+        requestBytes: parsedBodyResult.bytesRead,
+        decodedBytes: parsedBodyResult.decodedBytes,
+        contentEncoding: parsedBodyResult.contentEncoding,
+        bodyReadMs: parsedBodyResult.bodyReadMs,
+        decompressMs: parsedBodyResult.decompressMs,
+        jsonParseMs: parsedBodyResult.jsonParseMs,
+        validationMs,
+        payloadReadyMs: parsedBodyResult.totalMs + validationMs,
       });
       return NextResponse.json(
         { error: validationResult.error },
@@ -1161,9 +1237,16 @@ export async function POST(request: NextRequest) {
     const screenshotBuffer = validationResult.screenshotBuffer;
 
     logger.info("payload_parsed", {
-      parseMs: elapsedMs(parseStartedAt),
       requestBytes: parsedBodyResult.bytesRead,
+      decodedBytes: parsedBodyResult.decodedBytes,
+      contentEncoding: parsedBodyResult.contentEncoding,
+      bodyReadMs: parsedBodyResult.bodyReadMs,
+      decompressMs: parsedBodyResult.decompressMs,
+      jsonParseMs: parsedBodyResult.jsonParseMs,
+      validationMs,
+      payloadReadyMs: parsedBodyResult.totalMs + validationMs,
       descriptionChars: body.description?.length ?? 0,
+      screenshotBytes: screenshotBuffer?.byteLength ?? 0,
       diagnostics: {
         recentLogs: body.diagnostics?.recentLogs?.length ?? 0,
         recentErrors: body.diagnostics?.recentErrors?.length ?? 0,
@@ -1261,6 +1344,8 @@ export async function POST(request: NextRequest) {
       displayCount,
       hasScreenshot,
       externalSource,
+      requestBytes: parsedBodyResult.bytesRead,
+      decodedBytes: parsedBodyResult.decodedBytes,
     });
 
     const diagnosticsWriteStartedAt = Date.now();
@@ -1291,6 +1376,9 @@ export async function POST(request: NextRequest) {
     logger.info("diagnostics_persisted", {
       feedbackId,
       diagnosticsWriteMs: elapsedMs(diagnosticsWriteStartedAt),
+      recentLogs: body.diagnostics.recentLogs?.length ?? 0,
+      recentErrors: body.diagnostics.recentErrors?.length ?? 0,
+      crashReports: body.diagnostics.emergencyCrashReports?.length ?? 0,
     });
     logger.success({
       status: 200,
