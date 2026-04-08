@@ -121,20 +121,27 @@ interface FeedbackBodyReadFailure {
 
 type FeedbackBodyReadResult = FeedbackBodyReadSuccess | FeedbackBodyReadFailure;
 
-function decodeFeedbackRequestBody(
-  bytes: Uint8Array,
-  contentEncodingHeader: string | null
-): Uint8Array {
-  const encodings = (contentEncodingHeader ?? "")
+function parseContentEncodings(contentEncodingHeader: string | null): string[] {
+  return (contentEncodingHeader ?? "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter((value) => value.length > 0 && value !== "identity");
+}
 
-  if (encodings.length === 0) {
+function looksLikeGzipPayload(bytes: Uint8Array): boolean {
+  return bytes.byteLength >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+function decodeFeedbackRequestBody(
+  bytes: Uint8Array,
+  contentEncodings: string[],
+  contentEncodingHeader: string | null
+): Uint8Array {
+  if (contentEncodings.length === 0) {
     return bytes;
   }
 
-  if (encodings.length === 1 && encodings[0] === "gzip") {
+  if (contentEncodings.length === 1 && contentEncodings[0] === "gzip") {
     return gunzipSync(Buffer.from(bytes));
   }
 
@@ -621,7 +628,10 @@ async function readRequestJsonWithLimit(
   maxBytes: number
 ): Promise<FeedbackBodyReadResult> {
   const startedAt = Date.now();
-  const contentEncoding = request.headers.get("content-encoding")?.trim() || "identity";
+  const contentEncodingHeader = request.headers.get("content-encoding");
+  const contentEncoding = contentEncodingHeader?.trim() || "identity";
+  const contentEncodings = parseContentEncodings(contentEncodingHeader);
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   const contentLengthHeader = request.headers.get("content-length");
   if (contentLengthHeader) {
     const parsedContentLength = Number(contentLengthHeader);
@@ -704,44 +714,107 @@ async function readRequestJsonWithLimit(
 
   let decodedBody: Uint8Array;
   const decodeStartedAt = Date.now();
+  let usedLegacyNonCompressedFallback = false;
   try {
     decodedBody = decodeFeedbackRequestBody(
       combined,
-      request.headers.get("content-encoding")
+      contentEncodings,
+      contentEncodingHeader
     );
   } catch {
-    return {
-      ok: false,
-      status: 400,
-      error: "Invalid compressed request body.",
-      stage: "decompress",
-      bytesRead,
-      contentEncoding,
-      bodyReadMs,
-      decompressMs: elapsedMs(decodeStartedAt),
-      totalMs: elapsedMs(startedAt),
-    };
+    if (contentEncodings.length === 1 && contentEncodings[0] === "gzip") {
+      // Backward compatibility for older clients that still send raw JSON
+      // while incorrectly declaring gzip content-encoding.
+      decodedBody = combined;
+      usedLegacyNonCompressedFallback = true;
+    } else {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid compressed request body.",
+        stage: "decompress",
+        bytesRead,
+        contentEncoding,
+        bodyReadMs,
+        decompressMs: elapsedMs(decodeStartedAt),
+        totalMs: elapsedMs(startedAt),
+      };
+    }
   }
-  const decompressMs = elapsedMs(decodeStartedAt);
+  let decompressMs = elapsedMs(decodeStartedAt);
 
   let parsedBody: unknown;
   const parseStartedAt = Date.now();
+  const textDecoder = new TextDecoder();
   try {
-    parsedBody = JSON.parse(new TextDecoder().decode(decodedBody));
+    parsedBody = JSON.parse(textDecoder.decode(decodedBody));
   } catch {
-    return {
-      ok: false,
-      status: 400,
-      error: "Invalid JSON payload.",
-      stage: "json_parse",
-      bytesRead,
-      decodedBytes: decodedBody.byteLength,
-      contentEncoding,
-      bodyReadMs,
-      decompressMs,
-      jsonParseMs: elapsedMs(parseStartedAt),
-      totalMs: elapsedMs(startedAt),
-    };
+    if (
+      contentEncodings.length === 0 &&
+      !usedLegacyNonCompressedFallback &&
+      (looksLikeGzipPayload(combined) || contentType.includes("gzip"))
+    ) {
+      const fallbackDecodeStartedAt = Date.now();
+      try {
+        decodedBody = gunzipSync(Buffer.from(combined));
+      } catch {
+        return {
+          ok: false,
+          status: 400,
+          error: "Invalid compressed request body.",
+          stage: "decompress",
+          bytesRead,
+          contentEncoding,
+          bodyReadMs,
+          decompressMs: decompressMs + elapsedMs(fallbackDecodeStartedAt),
+          totalMs: elapsedMs(startedAt),
+        };
+      }
+      decompressMs += elapsedMs(fallbackDecodeStartedAt);
+      try {
+        parsedBody = JSON.parse(textDecoder.decode(decodedBody));
+      } catch {
+        return {
+          ok: false,
+          status: 400,
+          error: "Invalid JSON payload.",
+          stage: "json_parse",
+          bytesRead,
+          decodedBytes: decodedBody.byteLength,
+          contentEncoding,
+          bodyReadMs,
+          decompressMs,
+          jsonParseMs: elapsedMs(parseStartedAt),
+          totalMs: elapsedMs(startedAt),
+        };
+      }
+    } else if (usedLegacyNonCompressedFallback) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid compressed request body.",
+        stage: "decompress",
+        bytesRead,
+        contentEncoding,
+        bodyReadMs,
+        decompressMs,
+        totalMs: elapsedMs(startedAt),
+      };
+    } else {
+      return {
+        ok: false,
+        status: 400,
+        error: "Invalid JSON payload.",
+        stage: "json_parse",
+        bytesRead,
+        decodedBytes: decodedBody.byteLength,
+        contentEncoding,
+        bodyReadMs,
+        decompressMs,
+        jsonParseMs: elapsedMs(parseStartedAt),
+        totalMs: elapsedMs(startedAt),
+      };
+    }
   }
   const jsonParseMs = elapsedMs(parseStartedAt);
 
