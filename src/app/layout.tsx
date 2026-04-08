@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Retrace - Your Screen History, Searchable & Local",
@@ -42,7 +39,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={cn(inter.className, "antialiased")}>
+      <body className={cn("font-sans antialiased")}>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-QXRJRMRWTW"
           strategy="afterInteractive"
