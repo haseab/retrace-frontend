@@ -8,6 +8,7 @@ import createDownloads from "@/lib/db/migrations/0006-create-downloads";
 import createLinkClicks from "@/lib/db/migrations/0007-create-link-clicks";
 import backfillNormalizedFeedbackDiagnostics from "@/lib/db/migrations/0008-backfill-normalized-feedback-diagnostics";
 import createFeedbackArtifacts from "@/lib/db/migrations/0009-create-feedback-artifacts";
+import backfillFeedbackScreenshotArtifacts from "@/lib/db/migrations/0010-backfill-feedback-screenshots-artifacts";
 
 export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
   createFeedbackCore,
@@ -19,4 +20,5 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
   createLinkClicks,
   backfillNormalizedFeedbackDiagnostics,
   createFeedbackArtifacts,
+  backfillFeedbackScreenshotArtifacts,
 ];

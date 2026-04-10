@@ -9,8 +9,8 @@ import {
   ViewMode,
   FeedbackResponse,
   FeedbackSummaryItem,
-  FeedbackNote,
   hydrateFeedbackSummary,
+  canDownloadDiagnosticsArchiveForSource,
 } from "@/lib/types/feedback";
 import { FiltersBar } from "@/components/admin/feedback/filters-bar";
 import { KanbanBoard } from "@/components/admin/feedback/kanban-board";
@@ -25,12 +25,6 @@ const LIST_PAGE_SIZE = 30;
 const MIN_DETAIL_PANEL_WIDTH = 400;
 const DETAIL_PANEL_WIDTH_STORAGE_KEY = "internal_feedback_detail_panel_width_v1";
 const FOCUS_REFRESH_COOLDOWN_MS = 10_000;
-const EXPORT_SUMMARY_LINE_TARGET = 50;
-
-interface ExportIssueBundle {
-  issue: FeedbackItem;
-  notesThread: FeedbackNote[];
-}
 
 interface ColumnPaginationState {
   hasMore: boolean;
@@ -84,242 +78,6 @@ function appendUniqueIssues(existing: FeedbackItem[], incoming: FeedbackItem[]):
 
 function hydrateFeedbackItems(items: FeedbackSummaryItem[]): FeedbackItem[] {
   return items.map((item) => hydrateFeedbackSummary(item));
-}
-
-function countIssuesBy(items: FeedbackItem[], selectKey: (item: FeedbackItem) => string): Record<string, number> {
-  const counts: Record<string, number> = {};
-
-  for (const item of items) {
-    const key = selectKey(item) || "unknown";
-    counts[key] = (counts[key] ?? 0) + 1;
-  }
-
-  return Object.fromEntries(
-    Object.entries(counts).sort(([left], [right]) => left.localeCompare(right))
-  );
-}
-
-function getFilterValue(value: string | undefined): string {
-  if (!value || value === "all") {
-    return "all";
-  }
-  return value;
-}
-
-function toExportIssueRecord(bundle: ExportIssueBundle) {
-  const { issue, notesThread } = bundle;
-
-  return {
-    identity: {
-      id: issue.id,
-      type: issue.type,
-      externalSource: issue.externalSource,
-      externalId: issue.externalId,
-      externalUrl: issue.externalUrl,
-      hasScreenshot: issue.hasScreenshot,
-    },
-    workflow: {
-      status: issue.status,
-      priority: issue.priority,
-      isRead: issue.isRead,
-      tags: issue.tags,
-      notes: issue.notes,
-      notesThread,
-    },
-    report: {
-      email: issue.email,
-      description: issue.description,
-    },
-    environment: {
-      appVersion: issue.appVersion,
-      buildNumber: issue.buildNumber,
-      macOSVersion: issue.macOSVersion,
-      deviceModel: issue.deviceModel,
-      totalDiskSpace: issue.totalDiskSpace,
-      freeDiskSpace: issue.freeDiskSpace,
-    },
-    diagnostics: {
-      diagnosticsTimestamp: issue.diagnosticsTimestamp,
-      databaseStats: issue.databaseStats,
-      settingsSnapshot: issue.settingsSnapshot,
-      displayCount: issue.displayCount,
-      displayInfo: issue.displayInfo,
-      processInfo: issue.processInfo,
-      accessibilityInfo: issue.accessibilityInfo,
-      performanceInfo: issue.performanceInfo,
-      recentErrors: issue.recentErrors,
-      recentLogs: issue.recentLogs,
-      recentMetricEvents: issue.recentMetricEvents,
-      emergencyCrashReports: issue.emergencyCrashReports,
-    },
-    timestamps: {
-      createdAt: issue.createdAt,
-      updatedAt: issue.updatedAt,
-    },
-  };
-}
-
-function buildLlmExportText({
-  generatedAt,
-  view,
-  filters,
-  issues,
-  detailFallbackCount,
-  notesFallbackCount,
-}: {
-  generatedAt: string;
-  view: ViewMode;
-  filters: FeedbackFilters;
-  issues: ExportIssueBundle[];
-  detailFallbackCount: number;
-  notesFallbackCount: number;
-}): string {
-  const appliedStatusFilter = view === "list"
-    ? getFilterValue(filters.status)
-    : "all";
-  const trimmedSearch = filters.search?.trim() ?? "";
-  const sortedIssues = [...issues].sort((left, right) => {
-    const leftTimestamp = Date.parse(left.issue.updatedAt);
-    const rightTimestamp = Date.parse(right.issue.updatedAt);
-    return (Number.isNaN(rightTimestamp) ? 0 : rightTimestamp) - (Number.isNaN(leftTimestamp) ? 0 : leftTimestamp);
-  });
-  const issueRecords = sortedIssues.map((bundle) => bundle.issue);
-  const notesThreadCount = sortedIssues.reduce((count, bundle) => count + bundle.notesThread.length, 0);
-
-  const countsByStatus = countIssuesBy(issueRecords, (item) => item.status);
-  const countsByPriority = countIssuesBy(issueRecords, (item) => item.priority);
-  const countsByType = countIssuesBy(issueRecords, (item) => item.type);
-  const countsBySource = countIssuesBy(issueRecords, (item) => item.externalSource);
-
-  const structureGuide = [
-    "dataset: root object with metadata and issues array",
-    "dataset.metadata: high-level export context",
-    "dataset.metadata.description: why this export exists",
-    "dataset.metadata.exportFormatVersion: version marker for parsers",
-    "dataset.metadata.generatedAt: UTC ISO timestamp",
-    "dataset.metadata.sourceRoute: admin route used to trigger export",
-    "dataset.metadata.exportedFromView: list or kanban",
-    "dataset.metadata.scope: clarifies status-filter behavior",
-    "dataset.metadata.filters.type: type filter actually used",
-    "dataset.metadata.filters.status: status filter actually used",
-    "dataset.metadata.filters.priority: priority filter actually used",
-    "dataset.metadata.filters.search: search query used",
-    "dataset.metadata.counts.totalIssues: issue records exported",
-    "dataset.metadata.counts.detailFallbackCount: detail fetch fallbacks",
-    "dataset.metadata.counts.byStatus: status distribution map",
-    "dataset.metadata.counts.byPriority: priority distribution map",
-    "dataset.metadata.counts.byType: issue type distribution map",
-    "dataset.metadata.counts.bySource: external source distribution map",
-    "dataset.issues: array of issue records sorted by updatedAt descending",
-    "issue.identity: durable identity and external-link info",
-    "issue.identity.id: numeric issue id",
-    "issue.identity.type: Bug Report / Feature Request / Question",
-    "issue.identity.externalSource: app/manual/github/featurebase",
-    "issue.identity.externalId: upstream id when synced",
-    "issue.identity.externalUrl: upstream URL when available",
-    "issue.identity.hasScreenshot: screenshot availability boolean",
-    "issue.workflow: operational triage fields",
-    "issue.workflow.status: triage status",
-    "issue.workflow.priority: triage priority",
-    "issue.workflow.isRead: admin read marker",
-    "issue.workflow.tags: triage tags",
-    "issue.workflow.notes: admin notes (legacy field)",
-    "issue.workflow.notesThread: full note/comment timeline from notes API",
-    "issue.report: original user report payload",
-    "issue.report.email: reporter email when provided",
-    "issue.report.description: raw report text",
-    "issue.environment: app and machine metadata",
-    "issue.environment.appVersion: app semantic version",
-    "issue.environment.buildNumber: build number string",
-    "issue.environment.macOSVersion: macOS version string",
-    "issue.environment.deviceModel: machine model string",
-    "issue.environment.totalDiskSpace: total disk string",
-    "issue.environment.freeDiskSpace: free disk string",
-    "issue.diagnostics: telemetry and runtime diagnostics",
-    "issue.diagnostics.diagnosticsTimestamp: diagnostics capture timestamp",
-    "issue.diagnostics.databaseStats: session/frame/segment/db-size stats",
-    "issue.diagnostics.settingsSnapshot: app setting key-value snapshot",
-    "issue.diagnostics.displayCount: detected display count",
-    "issue.diagnostics.displayInfo: display details including retina/refresh/frame",
-    "issue.diagnostics.processInfo: process and security tool signals",
-    "issue.diagnostics.accessibilityInfo: accessibility settings flags",
-    "issue.diagnostics.performanceInfo: cpu/memory/power/thermal metrics",
-    "issue.diagnostics.recentErrors: bounded recent error lines",
-    "issue.diagnostics.recentLogs: bounded recent log lines",
-    "issue.diagnostics.recentMetricEvents: sanitized recent action trail from daily metrics",
-    "issue.diagnostics.emergencyCrashReports: captured crash report text",
-    "issue.timestamps: create/update timestamps for ordering and recency",
-    "issue.timestamps.createdAt: original submission time",
-    "issue.timestamps.updatedAt: last mutation time used for sorting",
-    "text footer markers: BEGIN/END DATASET JSON delimit machine-readable payload",
-  ];
-
-  const summaryLines = [
-    "RETRACE ADMIN FEEDBACK EXPORT (LLM READY)",
-    `generated_at: ${generatedAt}`,
-    "export_format_version: 1",
-    "source_route: /internal/feedback",
-    `exported_from_view: ${view}`,
-    `scope: ${view === "list" ? "current list filters (including status filter)" : "current kanban filters (status always all)"}`,
-    `records_exported: ${issueRecords.length}`,
-    `detail_fallback_records: ${detailFallbackCount}`,
-    `notes_fallback_records: ${notesFallbackCount}`,
-    `notes_thread_entries: ${notesThreadCount}`,
-    `filters.type: ${getFilterValue(filters.type)}`,
-    `filters.status: ${appliedStatusFilter}`,
-    `filters.priority: ${getFilterValue(filters.priority)}`,
-    `filters.search: ${trimmedSearch.length > 0 ? JSON.stringify(trimmedSearch) : "(none)"}`,
-    `counts.by_status: ${JSON.stringify(countsByStatus)}`,
-    `counts.by_priority: ${JSON.stringify(countsByPriority)}`,
-    `counts.by_type: ${JSON.stringify(countsByType)}`,
-    `counts.by_source: ${JSON.stringify(countsBySource)}`,
-    "",
-    "STRUCTURE GUIDE (first ~50 lines)",
-    ...structureGuide.map((line, index) => `${String(index + 1).padStart(2, "0")}. ${line}`),
-  ].slice(0, EXPORT_SUMMARY_LINE_TARGET);
-
-  const payload = {
-    metadata: {
-      description: "LLM-oriented export of admin feedback issues with full details when available.",
-      exportFormatVersion: 1,
-      generatedAt,
-      sourceRoute: "/internal/feedback",
-      exportedFromView: view,
-      scope: view === "list"
-        ? "current list filters with status filter applied"
-        : "current kanban filters with status forced to all",
-      filters: {
-        type: getFilterValue(filters.type),
-        status: appliedStatusFilter,
-        priority: getFilterValue(filters.priority),
-        search: trimmedSearch,
-      },
-      counts: {
-        totalIssues: sortedIssues.length,
-        detailFallbackCount,
-        notesFallbackCount,
-        notesThreadEntries: notesThreadCount,
-        byStatus: countsByStatus,
-        byPriority: countsByPriority,
-        byType: countsByType,
-        bySource: countsBySource,
-      },
-    },
-    issues: sortedIssues.map((bundle) => toExportIssueRecord(bundle)),
-  };
-
-  return [
-    ...summaryLines,
-    "",
-    "=== BEGIN DATASET JSON ===",
-    JSON.stringify(payload, null, 2),
-    "=== END DATASET JSON ===",
-  ].join("\n");
-}
-
-function downloadTextFile(content: string, filename: string): void {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  downloadBlobFile(blob, filename);
 }
 
 function downloadBlobFile(blob: Blob, filename: string): void {
@@ -471,6 +229,10 @@ export default function FeedbackPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [exportMessage]);
+
+  useEffect(() => {
+    setExportMessage(null);
+  }, [selectedIssue?.id]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -882,16 +644,6 @@ export default function FeedbackPage() {
 
     void loadInitialKanban();
   }, [view, loadInitialKanban, loadInitialList]);
-
-  const fetchIssueNotesForExport = useCallback(async (id: number): Promise<FeedbackNote[]> => {
-    const res = await authFetch(`/api/feedback/${id}/notes`);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch notes for issue ${id}: ${res.status}`);
-    }
-
-    const data = await res.json() as { notes?: FeedbackNote[] };
-    return Array.isArray(data.notes) ? data.notes : [];
-  }, []);
 
   const handleDownloadDiagnosticsArchive = useCallback(async () => {
     if (isExporting) {
@@ -1352,6 +1104,9 @@ export default function FeedbackPage() {
   const resolvedSelectedIssue = selectedIssue && selectedIssueDetail
     ? { ...selectedIssue, ...selectedIssueDetail }
     : selectedIssue;
+  const canDownloadSelectedDiagnostics = canDownloadDiagnosticsArchiveForSource(
+    resolvedSelectedIssue?.externalSource
+  );
   const selectedIssueId = resolvedSelectedIssue?.id ?? null;
   const isSelectedIssueDetailLoading = selectedIssueId !== null && detailLoadingIssueId === selectedIssueId;
   const isSelectedIssueLogsLoading = selectedIssueId !== null && logsLoadingIssueId === selectedIssueId;
@@ -1497,7 +1252,7 @@ export default function FeedbackPage() {
                   onUpdate={handleUpdate}
                   onDelete={handleDeleteIssue}
                   onLoadRecentLogs={handleLoadRecentLogs}
-                  onDownload={handleDownloadDiagnosticsArchive}
+                  onDownload={canDownloadSelectedDiagnostics ? handleDownloadDiagnosticsArchive : undefined}
                   isDownloading={isExporting}
                   downloadMessage={exportMessage}
                   isLoadingRecentLogs={isSelectedIssueLogsLoading}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiBearerAuth } from "@/lib/api-auth";
 import { createApiRouteLogger } from "@/lib/api-route-logger";
+import { toBufferFromBlob } from "@/lib/blob-utils";
 
 export async function GET(
   request: NextRequest,
@@ -20,64 +21,35 @@ export async function GET(
     const { id } = await params;
 
     const result = await db.execute({
-      sql: "SELECT has_screenshot, screenshot_data FROM feedback WHERE id = ?",
+      sql: `
+        SELECT screenshot_data
+        FROM feedback_screenshots
+        WHERE feedback_id = ?
+      `,
       args: [id],
     });
 
-    if (result.rows.length === 0) {
-      logger.warn("feedback_not_found", { status: 404, feedbackId: id });
+    const row = result.rows[0];
+    const screenshotBuffer = row
+      ? toBufferFromBlob(row.screenshot_data)
+      : null;
+
+    if (!screenshotBuffer) {
+      logger.warn("screenshot_not_found", { status: 404, feedbackId: id });
       return NextResponse.json(
-        { error: "Feedback item not found" },
+        { error: "No screenshot available for this feedback item" },
         { status: 404 }
       );
     }
-
-    const row = result.rows[0];
-
-    if (!row.has_screenshot || !row.screenshot_data) {
-      const screenshotResult = await db.execute({
-        sql: "SELECT screenshot_data FROM feedback_screenshots WHERE feedback_id = ?",
-        args: [id],
-      });
-      const screenshotRow = screenshotResult.rows[0];
-
-      if (!row.has_screenshot || !screenshotRow?.screenshot_data) {
-        logger.warn("screenshot_not_found", { status: 404, feedbackId: id });
-        return NextResponse.json(
-          { error: "No screenshot available for this feedback item" },
-          { status: 404 }
-        );
-      }
-
-      const screenshotBuffer = screenshotRow.screenshot_data as ArrayBuffer;
-
-      logger.success({
-        status: 200,
-        feedbackId: id,
-        byteLength: screenshotBuffer.byteLength,
-        source: "feedback_screenshots",
-      });
-
-      return new NextResponse(screenshotBuffer, {
-        status: 200,
-        headers: {
-          "Content-Type": "image/png",
-          "Cache-Control": "public, max-age=31536000, immutable",
-        },
-      });
-    }
-
-    // The screenshot_data is stored as a BLOB (Buffer)
-    const screenshotBuffer = row.screenshot_data as ArrayBuffer;
 
     logger.success({
       status: 200,
       feedbackId: id,
       byteLength: screenshotBuffer.byteLength,
-      source: "feedback",
+      source: "feedback_screenshots",
     });
 
-    return new NextResponse(screenshotBuffer, {
+    return new NextResponse(new Uint8Array(screenshotBuffer), {
       status: 200,
       headers: {
         "Content-Type": "image/png",

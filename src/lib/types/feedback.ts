@@ -133,6 +133,12 @@ export interface FeedbackSummaryItem {
   updatedAt: string;
 }
 
+export function canDownloadDiagnosticsArchiveForSource(
+  source: FeedbackSource | null | undefined
+): boolean {
+  return source === "app" || source === "manual";
+}
+
 export function hydrateFeedbackSummary(summary: FeedbackSummaryItem): FeedbackItem {
   return {
     ...summary,

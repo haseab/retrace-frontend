@@ -97,26 +97,12 @@ interface FeedbackBodyReadSuccess {
   ok: true;
   body: unknown;
   bytesRead: number;
-  decodedBytes: number;
-  contentEncoding: string;
-  bodyReadMs: number;
-  decompressMs: number;
-  jsonParseMs: number;
-  totalMs: number;
 }
 
 interface FeedbackBodyReadFailure {
   ok: false;
   status: 400 | 413;
   error: string;
-  stage?: "content_length" | "body_missing" | "body_read" | "decompress" | "json_parse";
-  bytesRead?: number;
-  decodedBytes?: number;
-  contentEncoding?: string;
-  bodyReadMs?: number;
-  decompressMs?: number;
-  jsonParseMs?: number;
-  totalMs?: number;
 }
 
 type FeedbackBodyReadResult = FeedbackBodyReadSuccess | FeedbackBodyReadFailure;
@@ -132,20 +118,48 @@ function looksLikeGzipPayload(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 }
 
-function decodeFeedbackRequestBody(
-  bytes: Uint8Array,
-  contentEncodings: string[],
-  contentEncodingHeader: string | null
-): Uint8Array {
+function normalizeContentEncoding(
+  contentEncodings: string[]
+): "identity" | "gzip" | null {
   if (contentEncodings.length === 0) {
-    return bytes;
+    return "identity";
   }
 
   if (contentEncodings.length === 1 && contentEncodings[0] === "gzip") {
-    return gunzipSync(Buffer.from(bytes));
+    return "gzip";
   }
 
-  throw new Error(`Unsupported Content-Encoding: ${contentEncodingHeader}`);
+  return null;
+}
+
+function decodeGzipBodyWithLimit(
+  bytes: Uint8Array,
+  maxDecodedBytes: number
+): Uint8Array {
+  const decoded = gunzipSync(Buffer.from(bytes));
+  if (decoded.byteLength > maxDecodedBytes) {
+    const error = new Error("Decoded payload too large");
+    (error as { code?: string; decodedBytes?: number }).code = "DECODED_TOO_LARGE";
+    (error as { code?: string; decodedBytes?: number }).decodedBytes = decoded.byteLength;
+    throw error;
+  }
+  return decoded;
+}
+
+function tryParseJsonBytes(
+  bytes: Uint8Array,
+  textDecoder: TextDecoder
+): { ok: true; body: unknown } | { ok: false } {
+  try {
+    return {
+      ok: true,
+      body: JSON.parse(textDecoder.decode(bytes)),
+    };
+  } catch {
+    return {
+      ok: false,
+    };
+  }
 }
 
 interface FeedbackPayloadValidationSuccess {
@@ -627,12 +641,20 @@ async function readRequestJsonWithLimit(
   request: NextRequest,
   maxBytes: number
 ): Promise<FeedbackBodyReadResult> {
-  const startedAt = Date.now();
   const contentEncodingHeader = request.headers.get("content-encoding");
-  const contentEncoding = contentEncodingHeader?.trim() || "identity";
   const contentEncodings = parseContentEncodings(contentEncodingHeader);
+  const normalizedContentEncoding = normalizeContentEncoding(contentEncodings);
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   const contentLengthHeader = request.headers.get("content-length");
+
+  if (!normalizedContentEncoding) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Unsupported Content-Encoding: ${contentEncodingHeader}`,
+    };
+  }
+
   if (contentLengthHeader) {
     const parsedContentLength = Number(contentLengthHeader);
     if (Number.isFinite(parsedContentLength) && parsedContentLength > maxBytes) {
@@ -640,9 +662,6 @@ async function readRequestJsonWithLimit(
         ok: false,
         status: 413,
         error: `Payload too large. Max body size is ${maxBytes} bytes.`,
-        stage: "content_length",
-        contentEncoding,
-        totalMs: elapsedMs(startedAt),
       };
     }
   }
@@ -652,13 +671,9 @@ async function readRequestJsonWithLimit(
       ok: false,
       status: 400,
       error: "Request body is required.",
-      stage: "body_missing",
-      contentEncoding,
-      totalMs: elapsedMs(startedAt),
     };
   }
 
-  const bodyReadStartedAt = Date.now();
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let bytesRead = 0;
@@ -680,11 +695,6 @@ async function readRequestJsonWithLimit(
         ok: false,
         status: 413,
         error: `Payload too large. Max body size is ${maxBytes} bytes.`,
-        stage: "body_read",
-        bytesRead,
-        contentEncoding,
-        bodyReadMs: elapsedMs(bodyReadStartedAt),
-        totalMs: elapsedMs(startedAt),
       };
     }
 
@@ -696,11 +706,6 @@ async function readRequestJsonWithLimit(
       ok: false,
       status: 400,
       error: "Request body is required.",
-      stage: "body_read",
-      bytesRead,
-      contentEncoding,
-      bodyReadMs: elapsedMs(bodyReadStartedAt),
-      totalMs: elapsedMs(startedAt),
     };
   }
 
@@ -710,124 +715,91 @@ async function readRequestJsonWithLimit(
     combined.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  const bodyReadMs = elapsedMs(bodyReadStartedAt);
+  const textDecoder = new TextDecoder();
+
+  const parseRawResult = tryParseJsonBytes(combined, textDecoder);
+  if (normalizedContentEncoding === "identity" && parseRawResult.ok) {
+    return {
+      ok: true,
+      body: parseRawResult.body,
+      bytesRead,
+    };
+  }
+
+  const shouldAttemptGzipDecode =
+    normalizedContentEncoding === "gzip" ||
+    (
+      normalizedContentEncoding === "identity" &&
+      (looksLikeGzipPayload(combined) || contentType.includes("gzip"))
+    );
+
+  if (!shouldAttemptGzipDecode) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid JSON payload.",
+    };
+  }
 
   let decodedBody: Uint8Array;
-  const decodeStartedAt = Date.now();
-  let usedLegacyNonCompressedFallback = false;
   try {
-    decodedBody = decodeFeedbackRequestBody(
-      combined,
-      contentEncodings,
-      contentEncodingHeader
-    );
-  } catch {
-    if (contentEncodings.length === 1 && contentEncodings[0] === "gzip") {
-      // Backward compatibility for older clients that still send raw JSON
-      // while incorrectly declaring gzip content-encoding.
-      decodedBody = combined;
-      usedLegacyNonCompressedFallback = true;
-    } else {
+    decodedBody = decodeGzipBodyWithLimit(combined, maxBytes);
+  } catch (error) {
+    const errorWithMeta = error as { code?: string; decodedBytes?: number };
+    if (errorWithMeta.code === "DECODED_TOO_LARGE") {
       return {
         ok: false,
-        status: 400,
-        error: "Invalid compressed request body.",
-        stage: "decompress",
-        bytesRead,
-        contentEncoding,
-        bodyReadMs,
-        decompressMs: elapsedMs(decodeStartedAt),
-        totalMs: elapsedMs(startedAt),
+        status: 413,
+        error: `Payload too large after decompression. Max body size is ${maxBytes} bytes.`,
       };
     }
-  }
-  let decompressMs = elapsedMs(decodeStartedAt);
 
-  let parsedBody: unknown;
-  const parseStartedAt = Date.now();
-  const textDecoder = new TextDecoder();
-  try {
-    parsedBody = JSON.parse(textDecoder.decode(decodedBody));
-  } catch {
-    if (
-      contentEncodings.length === 0 &&
-      !usedLegacyNonCompressedFallback &&
-      (looksLikeGzipPayload(combined) || contentType.includes("gzip"))
-    ) {
-      const fallbackDecodeStartedAt = Date.now();
-      try {
-        decodedBody = gunzipSync(Buffer.from(combined));
-      } catch {
-        return {
-          ok: false,
-          status: 400,
-          error: "Invalid compressed request body.",
-          stage: "decompress",
-          bytesRead,
-          contentEncoding,
-          bodyReadMs,
-          decompressMs: decompressMs + elapsedMs(fallbackDecodeStartedAt),
-          totalMs: elapsedMs(startedAt),
-        };
-      }
-      decompressMs += elapsedMs(fallbackDecodeStartedAt);
-      try {
-        parsedBody = JSON.parse(textDecoder.decode(decodedBody));
-      } catch {
-        return {
-          ok: false,
-          status: 400,
-          error: "Invalid JSON payload.",
-          stage: "json_parse",
-          bytesRead,
-          decodedBytes: decodedBody.byteLength,
-          contentEncoding,
-          bodyReadMs,
-          decompressMs,
-          jsonParseMs: elapsedMs(parseStartedAt),
-          totalMs: elapsedMs(startedAt),
-        };
-      }
-    } else if (usedLegacyNonCompressedFallback) {
+    if (normalizedContentEncoding === "gzip" && parseRawResult.ok) {
+      // Backward compatibility for clients that declared gzip but sent plain JSON.
       return {
-        ok: false,
-        status: 400,
-        error: "Invalid compressed request body.",
-        stage: "decompress",
+        ok: true,
+        body: parseRawResult.body,
         bytesRead,
-        contentEncoding,
-        bodyReadMs,
-        decompressMs,
-        totalMs: elapsedMs(startedAt),
-      };
-    } else {
-      return {
-        ok: false,
-        status: 400,
-        error: "Invalid JSON payload.",
-        stage: "json_parse",
-        bytesRead,
-        decodedBytes: decodedBody.byteLength,
-        contentEncoding,
-        bodyReadMs,
-        decompressMs,
-        jsonParseMs: elapsedMs(parseStartedAt),
-        totalMs: elapsedMs(startedAt),
       };
     }
+
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid compressed request body.",
+    };
   }
-  const jsonParseMs = elapsedMs(parseStartedAt);
+
+  const parseDecodedResult = tryParseJsonBytes(decodedBody, textDecoder);
+  if (parseDecodedResult.ok) {
+    return {
+      ok: true,
+      body: parseDecodedResult.body,
+      bytesRead,
+    };
+  }
+
+  if (normalizedContentEncoding === "gzip") {
+    if (parseRawResult.ok) {
+      // Backward compatibility for clients that declared gzip but sent plain JSON.
+      return {
+        ok: true,
+        body: parseRawResult.body,
+        bytesRead,
+      };
+    }
+
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid compressed request body.",
+    };
+  }
 
   return {
-    ok: true,
-    body: parsedBody,
-    bytesRead,
-    decodedBytes: decodedBody.byteLength,
-    contentEncoding,
-    bodyReadMs,
-    decompressMs,
-    jsonParseMs,
-    totalMs: elapsedMs(startedAt),
+    ok: false,
+    status: 400,
+    error: "Invalid JSON payload.",
   };
 }
 
@@ -1200,10 +1172,6 @@ function validateFeedbackPayload(rawBody: unknown): FeedbackPayloadValidationRes
   };
 }
 
-function elapsedMs(startedAt: number): number {
-  return Date.now() - startedAt;
-}
-
 function toFeedbackId(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) {
@@ -1266,14 +1234,6 @@ export async function POST(request: NextRequest) {
       logger.warn("invalid_payload", {
         status: parsedBodyResult.status,
         reason: parsedBodyResult.error,
-        stage: parsedBodyResult.stage,
-        requestBytes: parsedBodyResult.bytesRead,
-        decodedBytes: parsedBodyResult.decodedBytes,
-        contentEncoding: parsedBodyResult.contentEncoding,
-        bodyReadMs: parsedBodyResult.bodyReadMs,
-        decompressMs: parsedBodyResult.decompressMs,
-        jsonParseMs: parsedBodyResult.jsonParseMs,
-        payloadReadMs: parsedBodyResult.totalMs,
       });
       return NextResponse.json(
         { error: parsedBodyResult.error },
@@ -1281,22 +1241,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validationStartedAt = Date.now();
     const validationResult = validateFeedbackPayload(parsedBodyResult.body);
-    const validationMs = elapsedMs(validationStartedAt);
     if (!validationResult.ok) {
       logger.warn("invalid_payload", {
         status: validationResult.status,
         reason: validationResult.error,
-        stage: "validation",
-        requestBytes: parsedBodyResult.bytesRead,
-        decodedBytes: parsedBodyResult.decodedBytes,
-        contentEncoding: parsedBodyResult.contentEncoding,
-        bodyReadMs: parsedBodyResult.bodyReadMs,
-        decompressMs: parsedBodyResult.decompressMs,
-        jsonParseMs: parsedBodyResult.jsonParseMs,
-        validationMs,
-        payloadReadyMs: parsedBodyResult.totalMs + validationMs,
       });
       return NextResponse.json(
         { error: validationResult.error },

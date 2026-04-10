@@ -7,6 +7,8 @@ import type {
   FeedbackItem as SharedFeedbackItem,
   FeedbackSummaryItem as SharedFeedbackSummaryItem,
 } from "@/lib/types/feedback";
+import { canDownloadDiagnosticsArchiveForSource } from "@/lib/types/feedback";
+import { toBufferFromBlob } from "@/lib/blob-utils";
 
 export interface FeedbackDisplay {
   index: number;
@@ -117,6 +119,23 @@ export interface NormalizedDiagnosticsState {
   recentLogs: string[];
   recentErrors: string[];
   recentMetricEvents: DiagnosticMetricEvent[];
+}
+
+export interface FeedbackRawDiagnosticsArchive {
+  schemaVersion: number;
+  contentEncoding: string;
+  payloadData: Uint8Array;
+}
+
+export interface FeedbackDiagnosticsArchiveLookupResult {
+  status: "ready" | "not_found" | "unavailable";
+  archive?: FeedbackRawDiagnosticsArchive;
+  source?: "raw_artifact" | "legacy_fallback";
+}
+
+interface FeedbackRawDiagnosticsStatement {
+  sql: string;
+  args: [number, number, string, Uint8Array];
 }
 
 const VALID_STATUSES = new Set(["open", "in_progress", "to_notify", "notified", "resolved", "closed", "back_burner"]);
@@ -481,6 +500,46 @@ interface FeedbackLogInsertRow {
   message: string;
 }
 
+interface NormalizedDiagnosticsPayload {
+  displayInfo: FeedbackDisplayInfo;
+  processInfo: FeedbackProcessInfo;
+  accessibilityInfo: FeedbackAccessibilityInfo;
+  performanceInfo: FeedbackPerformanceInfo;
+  settingsSnapshot: Record<string, string>;
+  emergencyCrashReports: string[];
+  recentLogs: string[];
+  recentErrors: string[];
+  recentMetricEvents: DiagnosticMetricEvent[];
+  displayCount: number;
+}
+
+function normalizeDiagnosticsPayload(
+  diagnostics: FeedbackDiagnosticsPayload
+): NormalizedDiagnosticsPayload {
+  const displayInfo = normalizeDisplayInfo(diagnostics.displayInfo);
+  const processInfo = normalizeProcessInfo(diagnostics.processInfo);
+  const accessibilityInfo = normalizeAccessibilityInfo(diagnostics.accessibilityInfo);
+  const performanceInfo = normalizePerformanceInfo(diagnostics.performanceInfo);
+  const settingsSnapshot = normalizeSettingsSnapshot(diagnostics.settingsSnapshot);
+  const emergencyCrashReports = normalizeStringArray(diagnostics.emergencyCrashReports);
+  const recentLogs = normalizeStringArray(diagnostics.recentLogs);
+  const recentErrors = normalizeStringArray(diagnostics.recentErrors);
+  const recentMetricEvents = normalizeRecentMetricEvents(diagnostics.recentMetricEvents);
+
+  return {
+    displayInfo,
+    processInfo,
+    accessibilityInfo,
+    performanceInfo,
+    settingsSnapshot,
+    emergencyCrashReports,
+    recentLogs,
+    recentErrors,
+    recentMetricEvents,
+    displayCount: Math.max(displayInfo.count, displayInfo.displays.length),
+  };
+}
+
 function hasDiagnosticsPayloadFields(diagnostics: FeedbackDiagnosticsPayload): boolean {
   return (
     diagnostics.settingsSnapshot !== undefined ||
@@ -495,23 +554,17 @@ function hasDiagnosticsPayloadFields(diagnostics: FeedbackDiagnosticsPayload): b
   );
 }
 
-function coerceBlobToBuffer(value: unknown): Buffer | null {
-  if (value instanceof ArrayBuffer) {
-    return Buffer.from(value);
-  }
-
-  if (ArrayBuffer.isView(value)) {
-    return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
-  }
-
-  return null;
-}
-
 function parseStoredRawDiagnosticsPayload(
   payloadBlob: unknown,
-  contentEncoding: unknown
+  contentEncoding: unknown,
+  schemaVersion: unknown
 ): FeedbackDiagnosticsPayload | null {
-  const rawBuffer = coerceBlobToBuffer(payloadBlob);
+  const normalizedSchemaVersion = toInteger(schemaVersion);
+  if (normalizedSchemaVersion !== RAW_DIAGNOSTICS_SCHEMA_VERSION) {
+    return null;
+  }
+
+  const rawBuffer = toBufferFromBlob(payloadBlob);
   if (!rawBuffer) {
     return null;
   }
@@ -532,22 +585,12 @@ function parseStoredRawDiagnosticsPayload(
   }
 
   try {
-    const parsed = JSON.parse(decodedBuffer.toString("utf8")) as
-      | { payload?: FeedbackDiagnosticsPayload }
-      | FeedbackDiagnosticsPayload;
+    const parsed = JSON.parse(decodedBuffer.toString("utf8")) as FeedbackDiagnosticsPayload;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return null;
     }
 
-    const maybeEnvelope = parsed as { payload?: unknown };
-    const payload = Object.prototype.hasOwnProperty.call(maybeEnvelope, "payload")
-      ? maybeEnvelope.payload
-      : parsed;
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return null;
-    }
-
-    return payload as FeedbackDiagnosticsPayload;
+    return parsed;
   } catch {
     return null;
   }
@@ -557,6 +600,7 @@ function buildNormalizedDiagnosticsStateFromPayload(
   diagnostics: FeedbackDiagnosticsPayload,
   options: GetNormalizedDiagnosticsOptions = {}
 ): NormalizedDiagnosticsState {
+  const normalizedDiagnostics = normalizeDiagnosticsPayload(diagnostics);
   const includePerformance = options.includePerformance ?? true;
   const includeProcess = options.includeProcess ?? true;
   const includeAccessibility = options.includeAccessibility ?? true;
@@ -567,88 +611,75 @@ function buildNormalizedDiagnosticsStateFromPayload(
   const includeRecentLogs = options.includeRecentLogs ?? true;
   const includeRecentMetricEvents = options.includeRecentMetricEvents ?? true;
 
-  const normalizedDisplayInfo = normalizeDisplayInfo(diagnostics.displayInfo);
-  const normalizedProcessInfo = normalizeProcessInfo(diagnostics.processInfo);
-  const normalizedAccessibilityInfo = normalizeAccessibilityInfo(diagnostics.accessibilityInfo);
-  const normalizedPerformanceInfo = normalizePerformanceInfo(diagnostics.performanceInfo);
-  const normalizedSettingsSnapshot = normalizeSettingsSnapshot(diagnostics.settingsSnapshot);
-  const normalizedCrashReports = normalizeStringArray(diagnostics.emergencyCrashReports);
-  const normalizedRecentLogs = normalizeStringArray(diagnostics.recentLogs);
-  const normalizedRecentErrors = normalizeStringArray(diagnostics.recentErrors);
-  const normalizedRecentMetricEvents = normalizeRecentMetricEvents(diagnostics.recentMetricEvents);
-
   const state = createNormalizedDiagnosticsState();
 
   if (includePerformance) {
     state.hasPerformance =
-      hasPerformanceData(normalizedPerformanceInfo) ||
+      hasPerformanceData(normalizedDiagnostics.performanceInfo) ||
       diagnostics.performanceInfo !== undefined;
-    state.performanceInfo = normalizedPerformanceInfo;
+    state.performanceInfo = normalizedDiagnostics.performanceInfo;
   }
 
   if (includeProcess) {
     state.hasProcess =
-      hasProcessData(normalizedProcessInfo) ||
+      hasProcessData(normalizedDiagnostics.processInfo) ||
       diagnostics.processInfo !== undefined;
-    state.processInfo = normalizedProcessInfo;
+    state.processInfo = normalizedDiagnostics.processInfo;
   }
 
   if (includeAccessibility) {
     state.hasAccessibility =
-      hasAccessibilityData(normalizedAccessibilityInfo) ||
+      hasAccessibilityData(normalizedDiagnostics.accessibilityInfo) ||
       diagnostics.accessibilityInfo !== undefined;
-    state.accessibilityInfo = normalizedAccessibilityInfo;
+    state.accessibilityInfo = normalizedDiagnostics.accessibilityInfo;
   }
 
   if (includeDisplays) {
     state.hasDisplays =
-      normalizedDisplayInfo.count > 0 ||
-      normalizedDisplayInfo.displays.length > 0 ||
+      normalizedDiagnostics.displayInfo.count > 0 ||
+      normalizedDiagnostics.displayInfo.displays.length > 0 ||
       diagnostics.displayInfo !== undefined;
     state.displayInfo = {
-      ...normalizedDisplayInfo,
-      displays: [...normalizedDisplayInfo.displays],
-      count: Math.max(
-        normalizedDisplayInfo.count,
-        normalizedDisplayInfo.displays.length
-      ),
+      ...normalizedDiagnostics.displayInfo,
+      displays: [...normalizedDiagnostics.displayInfo.displays],
+      count: normalizedDiagnostics.displayCount,
     };
   }
 
   if (includeSettings) {
     state.hasSettings =
-      Object.keys(normalizedSettingsSnapshot).length > 0 ||
+      Object.keys(normalizedDiagnostics.settingsSnapshot).length > 0 ||
       diagnostics.settingsSnapshot !== undefined;
-    state.settingsSnapshot = normalizedSettingsSnapshot;
+    state.settingsSnapshot = normalizedDiagnostics.settingsSnapshot;
   }
 
   if (includeCrashReports) {
     state.hasCrashReports =
-      normalizedCrashReports.length > 0 ||
+      normalizedDiagnostics.emergencyCrashReports.length > 0 ||
       diagnostics.emergencyCrashReports !== undefined;
-    state.emergencyCrashReports = normalizedCrashReports;
+    state.emergencyCrashReports = normalizedDiagnostics.emergencyCrashReports;
   }
 
   const includeAnyLogEntries = includeRecentErrors || includeRecentLogs;
   if (includeAnyLogEntries) {
     state.hasLogEntries =
-      normalizedRecentLogs.length > 0 ||
-      normalizedRecentErrors.length > 0 ||
+      normalizedDiagnostics.recentLogs.length > 0 ||
+      normalizedDiagnostics.recentErrors.length > 0 ||
       diagnostics.recentLogs !== undefined ||
       diagnostics.recentErrors !== undefined;
     if (includeRecentLogs) {
-      state.recentLogs = normalizedRecentLogs;
+      state.recentLogs = normalizedDiagnostics.recentLogs;
     }
     if (includeRecentErrors) {
-      state.recentErrors = normalizedRecentErrors;
+      state.recentErrors = normalizedDiagnostics.recentErrors;
     }
   }
 
   if (includeRecentMetricEvents) {
     state.hasMetricEvents =
-      normalizedRecentMetricEvents.length > 0 ||
+      normalizedDiagnostics.recentMetricEvents.length > 0 ||
       diagnostics.recentMetricEvents !== undefined;
-    state.recentMetricEvents = normalizedRecentMetricEvents;
+    state.recentMetricEvents = normalizedDiagnostics.recentMetricEvents;
   }
 
   return state;
@@ -664,21 +695,19 @@ const MAX_LOG_ROWS_PER_INSERT = Math.max(
 export function buildFeedbackRawDiagnosticsStatement(
   feedbackId: number,
   diagnostics: FeedbackDiagnosticsPayload
-): { sql: string; args: [number, number, string, Uint8Array] } | null {
-  if (!hasDiagnosticsPayloadFields(diagnostics)) {
+): FeedbackRawDiagnosticsStatement | null {
+  const archive = createFeedbackRawDiagnosticsArchive(diagnostics);
+  if (!archive) {
     return null;
   }
 
-  const envelope = {
-    version: RAW_DIAGNOSTICS_SCHEMA_VERSION,
-    payload: diagnostics,
-  };
-  const serialized = Buffer.from(
-    stringifyJson(envelope, { version: RAW_DIAGNOSTICS_SCHEMA_VERSION, payload: {} }),
-    "utf8"
-  );
-  const compressed = gzipSync(serialized);
+  return buildFeedbackRawDiagnosticsUpsertStatement(feedbackId, archive);
+}
 
+function buildFeedbackRawDiagnosticsUpsertStatement(
+  feedbackId: number,
+  archive: FeedbackRawDiagnosticsArchive
+): FeedbackRawDiagnosticsStatement {
   return {
     sql: `
       INSERT INTO feedback_diagnostics_raw (
@@ -692,10 +721,152 @@ export function buildFeedbackRawDiagnosticsStatement(
     `,
     args: [
       feedbackId,
-      RAW_DIAGNOSTICS_SCHEMA_VERSION,
-      RAW_DIAGNOSTICS_CONTENT_ENCODING,
-      compressed,
+      archive.schemaVersion,
+      archive.contentEncoding,
+      archive.payloadData,
     ],
+  };
+}
+
+export function createFeedbackRawDiagnosticsArchive(
+  diagnostics: FeedbackDiagnosticsPayload
+): FeedbackRawDiagnosticsArchive | null {
+  if (!hasDiagnosticsPayloadFields(diagnostics)) {
+    return null;
+  }
+
+  const serialized = Buffer.from(
+    stringifyJson(diagnostics, {}),
+    "utf8"
+  );
+
+  return {
+    schemaVersion: RAW_DIAGNOSTICS_SCHEMA_VERSION,
+    contentEncoding: RAW_DIAGNOSTICS_CONTENT_ENCODING,
+    payloadData: gzipSync(serialized),
+  };
+}
+
+export function buildFeedbackDiagnosticsPayloadFromApiItem(
+  feedback: FeedbackApiItem
+): FeedbackDiagnosticsPayload {
+  return {
+    settingsSnapshot: {
+      ...feedback.settingsSnapshot,
+    },
+    recentErrors: [...feedback.recentErrors],
+    recentLogs: [...feedback.recentLogs],
+    displayInfo: normalizeDisplayInfo(
+      feedback.displayInfo as unknown as FeedbackDisplayInfo | undefined
+    ),
+    processInfo: normalizeProcessInfo(
+      feedback.processInfo as unknown as FeedbackProcessInfo | undefined
+    ),
+    accessibilityInfo: normalizeAccessibilityInfo(
+      feedback.accessibilityInfo as unknown as FeedbackAccessibilityInfo | undefined
+    ),
+    performanceInfo: normalizePerformanceInfo(
+      feedback.performanceInfo as unknown as FeedbackPerformanceInfo | undefined
+    ),
+    recentMetricEvents: normalizeRecentMetricEvents(feedback.recentMetricEvents),
+    emergencyCrashReports: normalizeStringArray(feedback.emergencyCrashReports),
+  };
+}
+
+export function createFeedbackRawDiagnosticsArchiveFromApiItem(
+  feedback: FeedbackApiItem
+): FeedbackRawDiagnosticsArchive | null {
+  return createFeedbackRawDiagnosticsArchive(
+    buildFeedbackDiagnosticsPayloadFromApiItem(feedback)
+  );
+}
+
+async function persistFeedbackRawDiagnosticsArchive(
+  database: Client,
+  feedbackId: number,
+  archive: FeedbackRawDiagnosticsArchive
+): Promise<void> {
+  await database.execute(
+    buildFeedbackRawDiagnosticsUpsertStatement(feedbackId, archive)
+  );
+}
+
+export async function getFeedbackDiagnosticsArchiveById(
+  database: Client,
+  feedbackId: number
+): Promise<FeedbackDiagnosticsArchiveLookupResult> {
+  const normalizedFeedbackId = Math.trunc(feedbackId);
+  if (!Number.isFinite(normalizedFeedbackId) || normalizedFeedbackId < 1) {
+    return { status: "not_found" };
+  }
+
+  const result = await database.execute({
+    sql: `
+      SELECT
+        feedback.*,
+        feedback_diagnostics_raw.schema_version AS raw_schema_version,
+        feedback_diagnostics_raw.content_encoding AS raw_content_encoding,
+        feedback_diagnostics_raw.payload_data AS raw_payload_data
+      FROM feedback
+      LEFT JOIN feedback_diagnostics_raw
+        ON feedback_diagnostics_raw.feedback_id = feedback.id
+      WHERE feedback.id = ?
+    `,
+    args: [normalizedFeedbackId],
+  });
+
+  if (result.rows.length === 0) {
+    return { status: "not_found" };
+  }
+
+  const row = result.rows[0] as Record<string, unknown>;
+  const rawPayload = toBufferFromBlob(row.raw_payload_data);
+  const rawSchemaVersion = toInteger(row.raw_schema_version);
+  if (rawPayload) {
+    if (rawSchemaVersion !== RAW_DIAGNOSTICS_SCHEMA_VERSION) {
+      return { status: "unavailable" };
+    }
+
+    return {
+      status: "ready",
+      source: "raw_artifact",
+      archive: {
+        schemaVersion: rawSchemaVersion,
+        contentEncoding:
+          typeof row.raw_content_encoding === "string" &&
+          row.raw_content_encoding.trim().length > 0
+            ? row.raw_content_encoding.trim().toLowerCase()
+            : "identity",
+        payloadData: new Uint8Array(rawPayload),
+      },
+    };
+  }
+
+  const diagnosticsById = await getFeedbackDiagnosticsByFeedbackIds(database, [normalizedFeedbackId], {
+    includeRecentErrors: true,
+    includeRecentLogs: true,
+  });
+  const feedback = mapFeedbackRowToApiItem(row, diagnosticsById.get(normalizedFeedbackId));
+
+  if (!canDownloadDiagnosticsArchiveForSource(feedback.externalSource)) {
+    return { status: "unavailable" };
+  }
+
+  const fallbackArchive = createFeedbackRawDiagnosticsArchiveFromApiItem(feedback);
+  if (!fallbackArchive) {
+    return { status: "unavailable" };
+  }
+
+  await persistFeedbackRawDiagnosticsArchive(
+    database,
+    normalizedFeedbackId,
+    fallbackArchive
+  );
+
+  return {
+    status: "ready",
+    source: "legacy_fallback",
+    archive: fallbackArchive,
   };
 }
 
@@ -870,20 +1041,17 @@ export async function upsertFeedbackDiagnostics(
   const traceId = options.traceId ?? `feedback-${feedbackId}`;
   const stageTimings: Record<string, number> = {};
 
-  const normalizedDisplayInfo = normalizeDisplayInfo(diagnostics.displayInfo);
-  const normalizedProcessInfo = normalizeProcessInfo(diagnostics.processInfo);
-  const normalizedAccessibilityInfo = normalizeAccessibilityInfo(diagnostics.accessibilityInfo);
-  const normalizedPerformanceInfo = normalizePerformanceInfo(diagnostics.performanceInfo);
-  const normalizedSettingsSnapshot = normalizeSettingsSnapshot(diagnostics.settingsSnapshot);
-  const normalizedCrashReports = normalizeStringArray(diagnostics.emergencyCrashReports);
-  const normalizedRecentLogs = normalizeStringArray(diagnostics.recentLogs);
-  const normalizedRecentErrors = normalizeStringArray(diagnostics.recentErrors);
-  const normalizedRecentMetricEvents = normalizeRecentMetricEvents(diagnostics.recentMetricEvents);
-
-  const displayCount = Math.max(
-    normalizedDisplayInfo.count,
-    normalizedDisplayInfo.displays.length
-  );
+  const normalizedDiagnostics = normalizeDiagnosticsPayload(diagnostics);
+  const normalizedDisplayInfo = normalizedDiagnostics.displayInfo;
+  const normalizedProcessInfo = normalizedDiagnostics.processInfo;
+  const normalizedAccessibilityInfo = normalizedDiagnostics.accessibilityInfo;
+  const normalizedPerformanceInfo = normalizedDiagnostics.performanceInfo;
+  const normalizedSettingsSnapshot = normalizedDiagnostics.settingsSnapshot;
+  const normalizedCrashReports = normalizedDiagnostics.emergencyCrashReports;
+  const normalizedRecentLogs = normalizedDiagnostics.recentLogs;
+  const normalizedRecentErrors = normalizedDiagnostics.recentErrors;
+  const normalizedRecentMetricEvents = normalizedDiagnostics.recentMetricEvents;
+  const displayCount = normalizedDiagnostics.displayCount;
 
   if (writePerformance) {
     const stageStartedAt = Date.now();
@@ -1167,7 +1335,7 @@ export async function getFeedbackDiagnosticsByFeedbackIds(
 
   const rawResult = await database.execute({
     sql: `
-      SELECT feedback_id, content_encoding, payload_data
+      SELECT feedback_id, schema_version, content_encoding, payload_data
       FROM feedback_diagnostics_raw
       WHERE feedback_id IN (${placeholders})
     `,
@@ -1180,7 +1348,11 @@ export async function getFeedbackDiagnosticsByFeedbackIds(
       continue;
     }
 
-    const payload = parseStoredRawDiagnosticsPayload(row.payload_data, row.content_encoding);
+    const payload = parseStoredRawDiagnosticsPayload(
+      row.payload_data,
+      row.content_encoding,
+      row.schema_version
+    );
     if (!payload) {
       continue;
     }
