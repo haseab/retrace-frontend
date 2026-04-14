@@ -585,12 +585,22 @@ function parseStoredRawDiagnosticsPayload(
   }
 
   try {
-    const parsed = JSON.parse(decodedBuffer.toString("utf8")) as FeedbackDiagnosticsPayload;
+    const parsed = JSON.parse(decodedBuffer.toString("utf8")) as
+      | FeedbackDiagnosticsPayload
+      | { payload?: FeedbackDiagnosticsPayload };
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return null;
     }
 
-    return parsed;
+    const normalizedPayload: FeedbackDiagnosticsPayload =
+      "payload" in parsed &&
+      parsed.payload &&
+      typeof parsed.payload === "object" &&
+      !Array.isArray(parsed.payload)
+        ? parsed.payload
+        : (parsed as FeedbackDiagnosticsPayload);
+
+    return normalizedPayload;
   } catch {
     return null;
   }
