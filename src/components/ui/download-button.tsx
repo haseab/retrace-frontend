@@ -39,7 +39,7 @@ export function DownloadButton({
             size="lg"
             variant="outline"
             onClick={handleClick}
-            className={`text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full [&_svg]:size-6 ${className}`}
+            className={`cursor-pointer text-lg px-8 py-6 rounded-xl hover:bg-blue-500/10 transition-all border-0 w-full [&_svg]:size-6 ${className}`}
           >
             {showIcon && <FaApple className="mb-1" />}
             {text}
