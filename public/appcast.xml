@@ -10,6 +10,52 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.9.0</title>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
+            <pubDate>Fri, 06 Nov 2026 19:29:08 +0000</pubDate>
+            <description>
+&lt;h2&gt;Retrace v0.9.0&lt;/h2&gt;
+&lt;p&gt;This release brings together the improvements made since v0.8.7 in April: exact activity breakdowns, better search and timeline navigation, improved capture, and fixes reported by the community.&lt;/p&gt;
+
+&lt;h3&gt;Dashboard &amp;amp; Activity&lt;/h3&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;strong&gt;Exact date and time ranges:&lt;/strong&gt; Use the existing date-range picker to see your activity over a specific period, such as 12:17–12:30. Date-only input still selects the full local day.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Faster filtered breakdowns:&lt;/strong&gt; App and window usage can appear before slower charts finish, and custom ranges avoid unrelated full-storage scans.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Better browser details:&lt;/strong&gt; Improved website and window breakdowns for supported browsers.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Dashboard deep links:&lt;/strong&gt; Other apps can open a chosen range with &lt;code&gt;retrace://dashboard?start=...&amp;amp;end=...&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Search &amp;amp; Timeline&lt;/h3&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;strong&gt;Cleaner search results:&lt;/strong&gt; Improved deduplication, faster movement between matches within a frame, and better support for searching shell commands.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Smoother keyboard navigation:&lt;/strong&gt; Improved search focus, select-all, copy/paste, calendar controls, and date jumping, including compact times and numeric offsets such as “2 days from now”. Settings search shortcuts also work more consistently.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Multi-display and focus fixes:&lt;/strong&gt; Fixed the timeline closing when you activate a window on another display and improved live-view focus behavior.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Easier timeline actions:&lt;/strong&gt; Access comments, tags, hiding, and deletion from the timeline’s three-dot menu.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;More reliable loading:&lt;/strong&gt; Prevented older loading results from replacing a newer view and improved cached-frame decoding.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Capture &amp;amp; Power&lt;/h3&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;strong&gt;Correct foreground attribution:&lt;/strong&gt; Improved app and window identification when Computer Use and screen-sharing indicators are present.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Improved capture colors:&lt;/strong&gt; Better preservation of screen color information during video encoding.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Clearer quality and storage settings:&lt;/strong&gt; Refined capture defaults and improved storage estimates.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Max OCR while plugged in:&lt;/strong&gt; An optional Power setting temporarily raises OCR processing to Max when connected to power and restores your saved priority when unplugged.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Everyday Fixes &amp;amp; Reliability&lt;/h3&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;strong&gt;Community-reported fixes:&lt;/strong&gt; Improved pause-reminder presentation, low-storage warning updates, and quit-confirmation behavior.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Recording interruption alerts:&lt;/strong&gt; Clearer warnings when the recording pipeline is interrupted, with improved handling of recording writers.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Safer background cleanup:&lt;/strong&gt; Bounded timeline still-image cache cleanup so it does not hold up capture.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;More reliable launches and setup:&lt;/strong&gt; Improved duplicate-launch handling, relaunch handoffs, Rewind cutoff setup, and unsupported-browser guidance.&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Feedback and polish:&lt;/strong&gt; Smaller diagnostic exports, more consistent appearance, and clearer settings descriptions.&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.0.dmg" sparkle:edSignature="jPs8qWkbnT/FpEdJuYa9+HawY0ZKLUn58kpKKyxTnwYQe8buPOZlG647qmi0+qvUm1Y2gFCnKlyFF3qnZPBuCg==" length="21689635" type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.8.7</title>
             <sparkle:version>11</sparkle:version>
             <sparkle:shortVersionString>0.8.7</sparkle:shortVersionString>
