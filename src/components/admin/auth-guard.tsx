@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, ReactNode, createContext, useContext } from "react";
+import { CredentialInput } from "./credential-input";
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -116,13 +117,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
                 <label className="block text-sm text-[hsl(var(--muted-foreground))] mb-2">
                   Password
                 </label>
-                <input
-                  type="password"
+                <CredentialInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-[hsl(var(--input))] border border-[hsl(var(--border))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                   placeholder="Enter password"
-                  autoFocus
                   disabled={isLocked || isSubmitting}
                 />
               </div>

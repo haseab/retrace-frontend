@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { CredentialInput } from "./credential-input";
 import {
   buildApiUrl,
   clearApiBaseUrlFromLocalStorage,
@@ -184,13 +185,11 @@ export function BearerTokenGuard({ children }: BearerTokenGuardProps) {
               <label className="block text-sm text-[hsl(var(--muted-foreground))] mb-2">
                 Bearer Token
               </label>
-              <input
-                type="password"
+              <CredentialInput
                 value={tokenInput}
                 onChange={(event) => setTokenInput(event.target.value)}
                 className="w-full px-4 py-3 bg-[hsl(var(--input))] border border-[hsl(var(--border))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                 placeholder="Enter BEARER_TOKEN"
-                autoFocus
                 disabled={isSubmitting}
               />
             </div>
