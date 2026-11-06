@@ -13,11 +13,12 @@
             <title>Version 0.9.0</title>
             <sparkle:version>12</sparkle:version>
             <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
-            <pubDate>Fri, 06 Nov 2026 19:29:08 +0000</pubDate>
+            <pubDate>Fri, 06 Nov 2026 21:35:46 +0000</pubDate>
             <description>
 &lt;h2&gt;Retrace v0.9.0&lt;/h2&gt;
 &lt;p&gt;This release brings together the improvements made since v0.8.7 in April: exact activity breakdowns, better search and timeline navigation, improved capture, and fixes reported by the community.&lt;/p&gt;
 
+&lt;h3&gt;Privacy During Calls&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Automatic face blurring:&lt;/strong&gt; Added face blurring during detected conference calls.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Per-call consent:&lt;/strong&gt; A menu-bar control can disable face blurring for the current call after confirming participants consented to unblurred recording.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Visible protection state:&lt;/strong&gt; The dashboard shows call-protection and consent status.&lt;/li&gt;&lt;/ul&gt;
 &lt;h3&gt;Dashboard &amp;amp; Activity&lt;/h3&gt;
 &lt;ul&gt;
   &lt;li&gt;&lt;strong&gt;Exact date and time ranges:&lt;/strong&gt; Use the existing date-range picker to see your activity over a specific period, such as 12:17–12:30. Date-only input still selects the full local day.&lt;/li&gt;
@@ -52,7 +53,7 @@
   &lt;li&gt;&lt;strong&gt;Feedback and polish:&lt;/strong&gt; Smaller diagnostic exports, more consistent appearance, and clearer settings descriptions.&lt;/li&gt;
 &lt;/ul&gt;
 </description>
-            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.0.dmg" sparkle:edSignature="jPs8qWkbnT/FpEdJuYa9+HawY0ZKLUn58kpKKyxTnwYQe8buPOZlG647qmi0+qvUm1Y2gFCnKlyFF3qnZPBuCg==" length="21689635" type="application/octet-stream" />
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.0.dmg" sparkle:edSignature="KlQ6K8dTcxrHa5gFDUyh6fg8oMtAtjvnjBMPp+3jzzzv47vt6CNd9aMUBapwmeliRLGtpSADMfBKqQAChUV8Dw==" length="21109464" type="application/octet-stream" />
         </item>
 
         <item>
