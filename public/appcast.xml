@@ -10,6 +10,43 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.9.1</title>
+            <sparkle:version>13</sparkle:version>
+            <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
+            <pubDate>Wed, 18 Nov 2026 06:19:08 +0000</pubDate>
+            <description>&lt;h2&gt;Retrace v0.9.1&lt;/h2&gt;
+&lt;h3&gt;Privacy&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Added permanent phrase redaction and improved protection for logs and excluded windows.&lt;/li&gt;
+&lt;li&gt;Preserved face-blur consent when conference-call windows move into the background.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Text capture and search&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Use capture-time Accessibility text to improve OCR accuracy while preserving searchable text found only in images.&lt;/li&gt;
+&lt;li&gt;Match Accessibility text to the recorded window and exclude password and offscreen content.&lt;/li&gt;
+&lt;li&gt;Preserve accented text and text offsets when correcting OCR.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Reliability and performance&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Respect intentional quits by disabling automatic watchdog recovery when Quit is confirmed, including recovery already in progress.&lt;/li&gt;
+&lt;li&gt;Improved database reads and recording-state recovery after metadata failures.&lt;/li&gt;
+&lt;li&gt;Reduced background disk writes from logs, preview caches, and System Monitor history.&lt;/li&gt;
+&lt;li&gt;Reduced background database, capture, and encoding overhead.&lt;/li&gt;
+&lt;li&gt;Made recording maintenance incremental and retention deletion recoverable.&lt;/li&gt;
+&lt;li&gt;Improved recovery-journal compression and cleanup of failed recording writers.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Dashboard and navigation&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Added dashboard context menus for bulk hiding and deletion.&lt;/li&gt;
+&lt;li&gt;Open timeline deep links without also revealing the dashboard.&lt;/li&gt;
+&lt;li&gt;Improved storage estimates for short retention windows.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Updating&lt;/h3&gt;
+&lt;p&gt;Open &lt;strong&gt;Settings → General → Updates → Check for Updates&lt;/strong&gt;. Requires macOS 13 or later on Apple Silicon.&lt;/p&gt;</description>
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.1.dmg" sparkle:edSignature="QG23OFT5FRHqPz7w9XMq0kbkRKTXpYfhDg3LAOdAb+SStQLokT78hcCKYL6WgJfcct5o5CfmDmzud3hD23ulAw==" length="24307413" type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.9.0</title>
             <sparkle:version>12</sparkle:version>
             <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
