@@ -10,6 +10,24 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.9.2</title>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>0.9.2</sparkle:shortVersionString>
+            <pubDate>Wed, 18 Nov 2026 09:17:10 +0000</pubDate>
+            <description>&lt;h2&gt;Retrace v0.9.2&lt;/h2&gt;
+&lt;h3&gt;On-demand text recognition&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Use Scan Text in the timeline or Command-Shift-O to recognize text in the current frame, including imported and live images.&lt;/li&gt;
+&lt;li&gt;See scanning progress, success, no-text, retry, and protected-frame feedback directly on the button.&lt;/li&gt;
+&lt;li&gt;Select and copy recognized text over the image. Results remain local and temporary; saved OCR and the search index are preserved.&lt;/li&gt;
+&lt;li&gt;Navigating away discards pending results, and scans respect saved redactions.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Updating&lt;/h3&gt;
+&lt;p&gt;Open &lt;strong&gt;Settings → General → Updates → Check for Updates&lt;/strong&gt;. Requires macOS 13 or later on Apple Silicon.&lt;/p&gt;</description>
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.2.dmg" sparkle:edSignature="JvbTw9FQrc0hQ/ZoVJ0a6IPz1av4/+J5816UUV48mGogTjU9x+xX7Nnlq3IM6mAUFUwNeZoyUqKzoOdYBMzNCg==" length="24318764" type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.9.1</title>
             <sparkle:version>13</sparkle:version>
             <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
