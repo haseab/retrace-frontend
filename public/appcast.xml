@@ -10,6 +10,32 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.9.2</title>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>0.9.2</sparkle:shortVersionString>
+            <pubDate>Fri, 20 Nov 2026 17:42:14 +0000</pubDate>
+            <description>&lt;h2&gt;Retrace v0.9.2&lt;/h2&gt;
+&lt;h3&gt;Text capture and search&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Improve OCR corrections by matching text to saved Accessibility passages using anchors within each node and its neighbors.&lt;/li&gt;
+&lt;li&gt;Improve reading order for text split into multiple boxes on the same line.&lt;/li&gt;
+&lt;li&gt;Recognize visible application windows separately, masking overlapping windows and reusing unchanged results.&lt;/li&gt;
+&lt;li&gt;Disable Vision language correction while retaining accurate recognition and anchored Accessibility correction.&lt;/li&gt;
+&lt;li&gt;Add on-demand text scanning in the timeline while preserving phrase-redaction protections.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Navigation and reliability&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Preserve input-method composition in search and focus while typing in advanced filters.&lt;/li&gt;
+&lt;li&gt;Improve timeline keyboard routing and navigation across block boundaries.&lt;/li&gt;
+&lt;li&gt;Restore recent timeline previews while video encoding completes.&lt;/li&gt;
+&lt;li&gt;Fix consented conference-call regions being blurred again by overlapping windows.&lt;/li&gt;
+&lt;li&gt;Reduce frame-image conversion overhead, bound pending memory-diagnostic work, and add capture-performance diagnostics.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Requires macOS 13 or later on Apple Silicon. Update through &lt;strong&gt;Settings → General → Updates → Check for Updates&lt;/strong&gt;, or download the DMG below.&lt;/p&gt;</description>
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.2.dmg" sparkle:edSignature="UhzrWesle+9jAGi+yb8XCT5592SqI92Oj/yhR4h9cKY1SNxdEcE2eyr87jo4q9VKi5LEpje74VAVZo/R9p+ZCA==" length="19344194" type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.9.1</title>
             <sparkle:version>13</sparkle:version>
             <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
