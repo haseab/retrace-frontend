@@ -10,6 +10,15 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.9.3</title>
+            <sparkle:version>15</sparkle:version>
+            <sparkle:shortVersionString>0.9.3</sparkle:shortVersionString>
+            <pubDate>Sun, 22 Nov 2026 00:39:15 GMT</pubDate>
+            <description>&lt;h2&gt;Retrace v0.9.3&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;Fix face protection for Google Meet windows with a trailing speaker indicator when a matching Meet URL is unavailable.&lt;/li&gt;&lt;li&gt;Keep recording paused reliably while the timeline is open across close/reopen transitions.&lt;/li&gt;&lt;/ul&gt;</description>
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.3.dmg" sparkle:edSignature="WOgXsUDekHpRRz+Sd8lKy5Fpvl4yiVf4GkMKnmDUHwdopsZkXFxjAFTspAGPugjiTv81iPQUhCG6gCwNYC5kAQ==" length="24473863" type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.9.2</title>
             <sparkle:version>14</sparkle:version>
             <sparkle:shortVersionString>0.9.2</sparkle:shortVersionString>
