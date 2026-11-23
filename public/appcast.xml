@@ -10,6 +10,15 @@
 
         <!-- Latest version should be first -->
         <item>
+            <title>Version 0.9.4</title>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>0.9.4</sparkle:shortVersionString>
+            <pubDate>Mon, 23 Nov 2026 06:58:02 GMT</pubDate>
+            <description>&lt;h2&gt;Retrace v0.9.4&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;Fix foreground content being blurred when an excluded app window is covered in the background.&lt;/li&gt;&lt;li&gt;Keep exposed portions of excluded windows redacted.&lt;/li&gt;&lt;/ul&gt;</description>
+            <enclosure url="https://cdn.retrace.to/Retrace-v0.9.4.dmg" sparkle:edSignature="3oNZEyB4dbgcnMK4WVJG47J4z44aFwsjNvZwrDXYUwa9VBfONYZTvthszKUN+kMShGZjltb+Uc68j3N+r+qtAg==" length="24485554" type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.9.3</title>
             <sparkle:version>15</sparkle:version>
             <sparkle:shortVersionString>0.9.3</sparkle:shortVersionString>
